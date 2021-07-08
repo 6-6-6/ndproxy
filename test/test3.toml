@@ -1,0 +1,7 @@
+[ndp]
+[ndp.conf3]
+type = "static"
+proxied_prefix = "2001:db8::/64"
+forwarded_ifaces = "veth0"
+proxied_ifaces = [ "lo", "eth0" ]
+rewrite = "2001:db9::/64"

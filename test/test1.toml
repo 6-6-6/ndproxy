@@ -1,0 +1,4 @@
+[ndp]
+[ndp.conf1]
+type = "forward"
+proxied_prefix = "2001:db8::/64"
