@@ -1,4 +1,5 @@
 use std::net::Ipv6Addr;
+use pnet::util::MacAddr;
 use futures::executor::block_on;
 use futures::stream::TryStreamExt;
 use rtnetlink::{new_connection, Error, Handle, IpVersion};
@@ -34,7 +35,7 @@ impl Neighbors {
     }
 
     // check whether we have the related neighbor entry
-    pub async fn check_whehter_entry_exists(&self, my_entry: &Ipv6Addr) -> Option<u32> {
+    pub async fn check_whehter_entry_exists(&self, my_entry: &Ipv6Addr) -> Option<(MacAddr, u32)> {
         let mut neighbors = self.handle
             .neighbours()
             .get()
@@ -49,7 +50,25 @@ impl Neighbors {
                                 Nla::Destination(destip) => {
                                     if &address::construct_v6addr_from_vecu8(destip) != my_entry {break};
                                     match entry.header.state {
-                                        NeighborStates::NUD_PERMANENT|NeighborStates::NUD_NOARP|NeighborStates::NUD_REACHABLE => return Some(entry.header.ifindex),
+                                        NeighborStates::NUD_PERMANENT|NeighborStates::NUD_NOARP|NeighborStates::NUD_REACHABLE|
+                                        NeighborStates::NUD_PROBE|NeighborStates::NUD_STALE|NeighborStates::NUD_DELAY => {
+                                            let mut macaddr = MacAddr::zero();
+                                            for nla in entry.nlas.iter() {
+                                                match nla {
+                                                    Nla::LinkLocalAddress(v) => {
+                                                        macaddr.0 = v[0];
+                                                        macaddr.1 = v[1];
+                                                        macaddr.2 = v[2];
+                                                        macaddr.3 = v[3];
+                                                        macaddr.4 = v[4];
+                                                        macaddr.5 = v[5];
+                                                        break
+                                                    },
+                                                    _ => continue,
+                                                }
+                                            }
+                                            return Some((macaddr, entry.header.ifindex))
+                                        },
                                         _ => (),
                                     }
                                 },
@@ -66,7 +85,7 @@ impl Neighbors {
     }
 
     // sync version
-    pub fn check_whehter_entry_exists_sync(&self, my_entry: &Ipv6Addr) -> Option<u32> {
+    pub fn check_whehter_entry_exists_sync(&self, my_entry: &Ipv6Addr) -> Option<(MacAddr,u32)> {
         block_on(self.check_whehter_entry_exists(my_entry))
     }
 }

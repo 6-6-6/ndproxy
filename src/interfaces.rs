@@ -1,9 +1,10 @@
 use std::net::{IpAddr,Ipv6Addr,SocketAddrV6};
 use pnet::datalink;
+use pnet::util::MacAddr;
 use socket2::{Socket,Type,Domain,Protocol};
 use crate::conf;
 
-#[derive(getset::Getters)]
+#[derive(getset::Getters, Clone)]
 pub struct NDInterface {
     #[get = "pub with_prefix"]
     name: String,
@@ -12,7 +13,9 @@ pub struct NDInterface {
     #[get = "pub with_prefix"]
     link_addr: Ipv6Addr,
     #[get = "pub with_prefix"]
-    sender: Socket,
+    hwaddr: MacAddr,
+    #[get = "pub with_prefix"]
+    from_pnet: datalink::NetworkInterface,
 }
 
 fn get_specified_iface(raw: &datalink::NetworkInterface) -> Option<NDInterface> {
@@ -23,20 +26,18 @@ fn get_specified_iface(raw: &datalink::NetworkInterface) -> Option<NDInterface> 
                 if ip.octets()[0] == 0xfe && ip.octets()[1] == 0x80 {
                     //
                     let link_addr = ip;
-                    // create sender
-                    let sender = Socket::new(Domain::IPV6,
-                        Type::RAW,
-                        Some(Protocol::ICMPV6)).unwrap();
-                    let addr = SocketAddrV6::new(ip, 0, 0, raw.index);
-                    println!("{:?}", addr);
-                    // panic if it fails to bind
-                    let _res = sender.bind(&addr.into()).unwrap();
+                    //
+                    let hwaddr = match raw.mac {
+                        Some(v) => v,
+                        None => MacAddr::new(0,0,0,0,0,0),
+                    };
                     //
                     return Some(NDInterface {
                         name: String::from(&raw.name),
                         scope_id: raw.index,
                         link_addr,
-                        sender,
+                        hwaddr,
+                        from_pnet: raw.clone(),
                     });
                 }
                 /*
