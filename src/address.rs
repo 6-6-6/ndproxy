@@ -1,5 +1,6 @@
 use std::net::Ipv6Addr;
 
+// construct an Ipv6Addr from a vector, make sure it conatins more than 16 elements!!
 pub fn construct_v6addr_from_vecu8(local_addr: &[u8]) -> Ipv6Addr {
     let mut new_octets = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     let mut i = 0;
