@@ -136,6 +136,11 @@ impl NeighborDiscoveryProxyItem {
         }
     }
 
+    /*
+     * just a wrapper
+     *
+     * TODO: rewrite it the async way, and make it wait for a random time to make the discovery complete
+     */
     #[allow(non_snake_case)]
     fn forward_NA_wrapper(
         &self,
@@ -144,7 +149,6 @@ impl NeighborDiscoveryProxyItem {
         the_ndp: ndp::NeighborSolicitPacket,
         ndp_receiver_id: usize,
     ) {
-        //TODO: wait for a random time to make the discovery complete
         if let Some((_mac, scope_id)) = self
             .neighbor_handle
             .check_whehter_entry_exists_sync(&tgt_addr)
@@ -155,8 +159,14 @@ impl NeighborDiscoveryProxyItem {
              */
             if &scope_id != self.proxied_ifaces[ndp_receiver_id].get_scope_id() {
                 self.forward_NA(ndp_receiver_id, the_ndp.get_target_addr(), node_addr);
-                // TODO: roll a dice and randomly send multicast NA messages
-                // self.forward_NA(ndp_receiver_id, the_ndp.get_target_addr(), "ff02::1".parse().unwrap())
+                // just a magic number
+                if rand::random::<u8>() > 200 {
+                    self.forward_NA(
+                        ndp_receiver_id,
+                        the_ndp.get_target_addr(),
+                        "ff02::1".parse().unwrap(),
+                    )
+                }
             }
         }
     }
