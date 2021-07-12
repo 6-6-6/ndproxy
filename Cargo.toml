@@ -18,3 +18,7 @@ pnet = "0.28.0"
 rtnetlink = "0.8.0"
 socket2 = { version="0.4.0", features = ["all"] }
 tokio = { version = "1.8.1", features = ["rt-multi-thread", "macros"] }
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
