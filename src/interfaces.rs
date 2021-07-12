@@ -1,7 +1,8 @@
 use crate::conf;
 use pnet::datalink;
 use pnet::util::MacAddr;
-use std::net::{IpAddr, Ipv6Addr};
+use socket2::{Domain, Protocol, Socket, Type};
+use std::net::{IpAddr, Ipv6Addr, SocketAddrV6};
 
 #[derive(getset::Getters, Clone)]
 pub struct NDInterface {
@@ -80,6 +81,27 @@ pub fn get_ifaces_defined_by_config(
     let proxied_ifaces = get_ifaces_with_name(&ndconf.get_proxied_ifaces());
     let forwarded_ifaces = get_ifaces_with_name(&ndconf.get_forwarded_ifaces());
     (proxied_ifaces, forwarded_ifaces)
+}
+
+/*
+ * prepare sockets for the interfaces:
+ * bind to its link local address
+ * set hop limit to 255
+ */
+pub fn prepare_sockets_for_ifaces(ifaces: &Vec<NDInterface>) -> Vec<Socket> {
+    let mut senders = Vec::new();
+    for iface in ifaces.iter() {
+        //
+        let iface_sender = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::ICMPV6)).unwrap();
+        let addr = SocketAddrV6::new(*iface.get_link_addr(), 0, 0, *iface.get_scope_id());
+        let _res = iface_sender.bind(&addr.into()).unwrap();
+        // don't know why, but it seems I have to add these two lines to make it work
+        let _res = iface_sender.set_multicast_hops_v6(255).unwrap();
+        let _res = iface_sender.set_unicast_hops_v6(255).unwrap();
+        //
+        senders.push(iface_sender);
+    }
+    senders
 }
 
 #[test]

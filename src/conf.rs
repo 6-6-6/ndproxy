@@ -4,6 +4,8 @@ use std::collections::HashMap;
 #[derive(getset::Getters, Debug, std::cmp::PartialEq, Clone)]
 pub struct NDConfig {
     #[get = "pub with_prefix"]
+    name: String,
+    #[get = "pub with_prefix"]
     proxy_type: u8,
     #[get = "pub with_prefix"]
     proxied_pfx: Ipv6Net,
@@ -17,10 +19,13 @@ pub struct NDConfig {
     dst_pfx: Ipv6Net,
 }
 
-const PROXY_FORWARD: &str = "forward";
+const PROXY_FORWARD_STRING: &str = "forward";
+
+pub const PROXY_STATIC: u8 = 0;
+pub const PROXY_FORWARD: u8 = 1;
 
 impl NDConfig {
-    pub fn new(config_table: HashMap<String, config::Value>) -> Self {
+    pub fn new(name: &str, config_table: HashMap<String, config::Value>) -> Self {
         /*
          * there must be a field for "type",
          * so that we can decide the way to proxy Neighbor Discoverys
@@ -33,7 +38,7 @@ impl NDConfig {
             .unwrap();
 
         let proxy_type: u8;
-        if proxy_type_string == PROXY_FORWARD {
+        if proxy_type_string == PROXY_FORWARD_STRING {
             proxy_type = 1;
         } else {
             proxy_type = 0;
@@ -122,6 +127,7 @@ impl NDConfig {
         }
 
         NDConfig {
+            name: name.to_string(),
             proxy_type,
             proxied_pfx,
             proxied_ifaces,
@@ -144,8 +150,8 @@ pub fn parse_config(cfile: &str) -> Vec<NDConfig> {
     myconfig.merge(config::File::with_name(cfile)).unwrap();
 
     // magic word: ndp
-    for value in myconfig.get_table("ndp").unwrap().values() {
-        ret.push(NDConfig::new(value.clone().into_table().unwrap()));
+    for (key, value) in myconfig.get_table("ndp").unwrap().iter() {
+        ret.push(NDConfig::new(key, value.clone().into_table().unwrap()));
     }
     ret
 }
@@ -157,6 +163,7 @@ fn test_config_parser() {
     let config3 = parse_config("test/test3.toml").pop().unwrap();
 
     let result1 = NDConfig {
+        name: "conf1".to_string(),
         proxy_type: 1,
         proxied_pfx: "2001:db8::/64".parse().unwrap(),
         proxied_ifaces: vec![String::from("*")],
@@ -165,6 +172,7 @@ fn test_config_parser() {
         dst_pfx: "2001:db8::/64".parse().unwrap(),
     };
     let result2 = NDConfig {
+        name: "conf2".to_string(),
         proxy_type: 0,
         proxied_pfx: "2001:db8::/64".parse().unwrap(),
         proxied_ifaces: vec![String::from("lo")],
@@ -173,6 +181,7 @@ fn test_config_parser() {
         dst_pfx: "2001:db9::/64".parse().unwrap(),
     };
     let result3 = NDConfig {
+        name: "conf3".to_string(),
         proxy_type: 0,
         proxied_pfx: "2001:db8::/64".parse().unwrap(),
         proxied_ifaces: vec![String::from("lo"), String::from("eth0")],
