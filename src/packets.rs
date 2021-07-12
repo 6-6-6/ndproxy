@@ -78,7 +78,7 @@ pub fn generate_NS_trick<'a>(
 //TODO: tests
 
 /*
- * these codes are for the normal way to proxy neighbor discovery
+ * these code are for the normal way to proxy neighbor discovery
  * that is, to forward NS packets to downstream
  * and to forward the reply NA packets to upstream
  * maybe unmasked someday.

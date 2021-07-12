@@ -1,0 +1,10 @@
+[ndp]
+[ndp.conf1]
+type = "forward"
+proxied_prefix = "2001:db8:a:2::/64"
+# upstream
+proxied_ifaces = [ "eth0" ]
+# downstream
+forwarded_ifaces = "eth1"
+# enable it if your local network has a different prefix
+# rewrite = "2001:dead:beef::/64"
