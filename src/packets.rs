@@ -24,12 +24,11 @@ pub fn generate_NA_forwarded<'a>(
     // force O flag to be 0
     ret.set_flags(flag & 0xdf);
     // NS option: target link local address
-    let mut new_options: Vec<ndp::NdpOption> = Vec::new();
-    new_options.push(ndp::NdpOption {
+    let new_options: Vec<ndp::NdpOption> = vec![ndp::NdpOption {
         option_type: ndp::NdpOptionTypes::TargetLLAddr,
         length: 1,
         data: src_hwaddr.octets().to_vec(),
-    });
+    }];
     ret.set_options(&new_options);
     // icmpv6 cehcksum
     let csum = pnet::util::ipv6_checksum(

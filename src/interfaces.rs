@@ -4,7 +4,7 @@ use pnet::util::MacAddr;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::net::{IpAddr, Ipv6Addr, SocketAddrV6};
 
-#[derive(getset::Getters, Clone)]
+#[derive(getset::Getters, Clone, Debug)]
 pub struct NDInterface {
     #[get = "pub with_prefix"]
     name: String,
@@ -52,7 +52,7 @@ fn get_specified_iface(raw: datalink::NetworkInterface) -> Option<NDInterface> {
 }
 
 // given a list of names of interfaces, return a list of NDInterfaces
-fn get_ifaces_with_name(names: &Vec<String>) -> Vec<NDInterface> {
+fn get_ifaces_with_name(names: &[String]) -> Vec<NDInterface> {
     let mut ret = Vec::new();
 
     if names.contains(&String::from("*")) {
@@ -88,7 +88,7 @@ pub fn get_ifaces_defined_by_config(
  * bind to its link local address
  * set hop limit to 255
  */
-pub fn prepare_sockets_for_ifaces(ifaces: &Vec<NDInterface>) -> Vec<Socket> {
+pub fn prepare_sockets_for_ifaces(ifaces: &[NDInterface]) -> Vec<Socket> {
     let mut senders = Vec::new();
     for iface in ifaces.iter() {
         //

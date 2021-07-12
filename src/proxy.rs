@@ -29,7 +29,19 @@ impl NeighborDiscoveryProxyItem {
         let proxied_if_senders = interfaces::prepare_sockets_for_ifaces(&proxied_ifaces);
         let forwarded_if_senders = interfaces::prepare_sockets_for_ifaces(&forwarded_ifaces);
 
-        // TODO: logging
+        // TODO: logging INFO
+        println!("[#] Initializing NeighborDiscoveryProxyItem...");
+        println!("\tconfig: {:?}", config);
+        println!(
+            "\tProxying _Neighbor Solicitation_ for: {:?}",
+            proxied_ifaces
+        );
+        println!(
+            "\tForwarding _Neighbor Advertisement_ for: {:?}",
+            forwarded_ifaces
+        );
+        // End of Logging
+
         NeighborDiscoveryProxyItem {
             config,
             proxied_ifaces,
@@ -42,13 +54,12 @@ impl NeighborDiscoveryProxyItem {
 
     pub fn run(&self) -> Result<(), ()> {
         let (mpsc_tx, mpsc_rx) = channel();
-        let mut id = 0;
         // spawn all of my monitors
-        for iface in self.proxied_ifaces.iter() {
+        for (id, iface) in self.proxied_ifaces.iter().enumerate() {
             //
             let tx = mpsc_tx.clone();
             let iface = iface.clone();
-            let pfx = self.config.get_proxied_pfx().clone();
+            let pfx = *self.config.get_proxied_pfx();
             //
             let _handle = thread::Builder::new()
                 .name(format!(
@@ -57,7 +68,6 @@ impl NeighborDiscoveryProxyItem {
                     iface.get_name()
                 ))
                 .spawn(move || monitor_NS(iface, id, pfx, tx));
-            id += 1;
         }
         if *self.config.get_proxy_type() == conf::PROXY_STATIC {
             self.process_NS_static(mpsc_rx)
@@ -114,6 +124,13 @@ impl NeighborDiscoveryProxyItem {
                         "Failed while generating Echo Request Message for detecting neighbors.",
                     );
                 let _ret = sender.send_to(send_pkt.packet(), &addr.into());
+                // TODO: logging DEBUG
+                println!(
+                    "[#] Discovering Neighbor {:?} on interface {:?}",
+                    tgt_addr,
+                    iface.get_name()
+                );
+                // End of Logging
             }
             self.forward_NA_wrapper(node_addr, tgt_addr, the_ndp, ndp_receiver_id)
         }
@@ -147,12 +164,12 @@ impl NeighborDiscoveryProxyItem {
     #[allow(non_snake_case)]
     pub fn forward_NA(&self, proxied_if_index: usize, proxied_addr: Ipv6Addr, dst_addr: Ipv6Addr) {
         // get items
-        let src_addr = *self.proxied_ifaces[proxied_if_index].get_link_addr();
-        let src_hwaddr = *self.proxied_ifaces[0].get_hwaddr();
-        let my_scope_id = *self.proxied_ifaces[proxied_if_index].get_scope_id();
+        let iface = self.proxied_ifaces.get(proxied_if_index).unwrap();
         let iface_sender = self.proxied_if_senders.get(proxied_if_index).unwrap();
+        let src_addr = *iface.get_link_addr();
+        let src_hwaddr = *iface.get_hwaddr();
 
-        let tgt = SocketAddrV6::new(dst_addr, 0, 0, my_scope_id);
+        let tgt = SocketAddrV6::new(dst_addr, 0, 0, *iface.get_scope_id());
         let pkt: ndp::NeighborAdvertPacket;
 
         // TODO: add router flag or not
@@ -176,11 +193,15 @@ impl NeighborDiscoveryProxyItem {
             .unwrap();
         }
 
-        // TODO: logging
+        // TODO: logging INFO
         println!(
-            "How I sent my NA: {:?}",
+            "[#] sent my NA for {:?} to {:?} on {:?} and the process returns {:?}",
+            proxied_addr,
+            tgt.ip(),
+            iface.get_name(),
             iface_sender.send_to(pkt.packet(), &tgt.into())
         );
+        // End of logging
     }
 }
 
@@ -197,7 +218,6 @@ fn monitor_NS(
     let mut monitor_config: datalink::Config = Default::default();
     monitor_config.channel_type = datalink::ChannelType::Layer3(0x86DD);
     // initialize the monitor
-    // TODO: logging
     let (_tx, mut monitor) = match datalink::channel(proxied_iface.get_from_pnet(), monitor_config)
     {
         Ok(datalink::Channel::Ethernet(tx, rx)) => (tx, rx),
@@ -205,6 +225,12 @@ fn monitor_NS(
         Err(e) => panic!("Error happened {}", e),
     };
     drop(_tx);
+    // TODO: logging
+    println!(
+        "[#] Initialized _Neighbor Solicitation_ monitor on interface {:?}.",
+        proxied_iface.get_name()
+    );
+    // End of Logging
     //
     loop {
         let packet = match monitor.next() {
@@ -217,7 +243,17 @@ fn monitor_NS(
                 Some(v) => v,
                 None => continue,
             };
-            if proxied_pfx.contains(&the_ndp.get_target_addr()) {
+            let ns_target_addr = the_ndp.get_target_addr();
+            // TODO: logging: DEBUG
+            let node_addr = address::construct_v6addr_from_vecu8(&packet[8..24]);
+            println!(
+                "[#] Got a neighbor solicitation from {:?} for {:?} on interface {:?}.",
+                node_addr,
+                ns_target_addr,
+                proxied_iface.get_name()
+            );
+            // End of Logging
+            if proxied_pfx.contains(&ns_target_addr) {
                 let node_addr = address::construct_v6addr_from_vecu8(&packet[8..24]);
                 let _res = mpsc_tx.send((the_ndp, proxied_id, node_addr));
             };
