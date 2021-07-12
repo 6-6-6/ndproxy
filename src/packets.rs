@@ -1,12 +1,90 @@
-use std::net::Ipv6Addr;
+use pnet::packet::icmpv6::{ndp, Icmpv6Packet, Icmpv6Types, MutableIcmpv6Packet};
+use pnet::packet::{Packet, PacketSize};
 use pnet::util::MacAddr;
-use pnet::packet::icmpv6;
-use pnet::packet::icmpv6::ndp;
-use pnet::packet::PacketSize;
-use pnet::packet::MutablePacket;
-use pnet::packet::Packet;
-use pnet::packet::icmpv6::{Icmpv6Packet, MutableIcmpv6Packet};
+use std::net::Ipv6Addr;
 
+// generate Neighbor Advertisement packet
+#[allow(non_snake_case)]
+pub fn generate_NA_forwarded<'a>(
+    src_addr: &Ipv6Addr,
+    dst_addr: &Ipv6Addr,
+    proxied_addr: &Ipv6Addr,
+    src_hwaddr: &MacAddr,
+    flag: u8,
+) -> Option<ndp::NeighborAdvertPacket<'a>> {
+    let pkt_buf: Vec<u8> = vec![0; 32];
+    let mut ret = match ndp::MutableNeighborAdvertPacket::owned(pkt_buf) {
+        Some(v) => v,
+        None => return None,
+    };
+    // basic info
+    ret.set_icmpv6_type(Icmpv6Types::NeighborAdvert);
+    // set the to-be-announced addr
+    ret.set_target_addr(*proxied_addr);
+    // force O flag to be 0
+    ret.set_flags(flag & 0xdf);
+    // NS option: target link local address
+    let mut new_options: Vec<ndp::NdpOption> = Vec::new();
+    new_options.push(ndp::NdpOption {
+        option_type: ndp::NdpOptionTypes::TargetLLAddr,
+        length: 1,
+        data: src_hwaddr.octets().to_vec(),
+    });
+    ret.set_options(&new_options);
+    // icmpv6 cehcksum
+    let csum = pnet::util::ipv6_checksum(
+        ret.packet(),
+        1,
+        &[],
+        src_addr,
+        dst_addr,
+        pnet::packet::ip::IpNextHeaderProtocols::Icmpv6,
+    );
+    ret.set_checksum(csum);
+
+    Some(ret.consume_to_immutable())
+}
+
+/* Instead of taking over the process of Neighbor Discovery myself,
+ * I decided to form an Icmpv6 Echo Request packet,
+ * and let the OS complete the Neighbor Discovery process.
+ */
+#[allow(non_snake_case)]
+pub fn generate_NS_trick<'a>(
+    original_packet: &'a ndp::NeighborSolicitPacket,
+    src_addr: &Ipv6Addr,
+    dst_addr: &Ipv6Addr,
+) -> Option<Icmpv6Packet<'a>> {
+    let pkt_buf: Vec<u8> =
+        vec![0; original_packet.packet_size() + Icmpv6Packet::minimum_packet_size()];
+    let mut ret = MutableIcmpv6Packet::owned(pkt_buf).unwrap();
+    // update the option field if needed
+    // convert it into a icmp echo request
+    ret.set_icmpv6_type(Icmpv6Types::EchoRequest);
+    ret.set_payload(original_packet.packet());
+    //
+    let csum = pnet::util::ipv6_checksum(
+        ret.packet(),
+        1,
+        &[],
+        src_addr,
+        dst_addr,
+        pnet::packet::ip::IpNextHeaderProtocols::Icmpv6,
+    );
+    ret.set_checksum(csum);
+
+    Some(ret.consume_to_immutable())
+}
+
+//TODO: tests
+
+/*
+ * these codes are for the normal way to proxy neighbor discovery
+ * that is, to forward NS packets to downstream
+ * and to forward the reply NA packets to upstream
+ * maybe unmasked someday.
+
+ // ICMP6Filter that can be applied by setsockopt()
 #[derive(Debug, Clone)]
 pub struct ICMP6Filter {
     filters: [u32;8]
@@ -29,7 +107,7 @@ impl ICMP6Filter {
     }
 }
 
-/*
+// generate NS packet from the old one
 pub fn generate_NS_proxied<'a>(original_packet: &'a ndp::NeighborSolicitPacket,
         src_addr: &Ipv6Addr,
         dst_addr: &Ipv6Addr,
@@ -70,6 +148,7 @@ pub fn generate_NS_proxied<'a>(original_packet: &'a ndp::NeighborSolicitPacket,
     Some(ret.consume_to_immutable())
 }
 
+// generate NA packet from the old one
 pub fn generate_NA_proxied<'a>(original_packet: &'a ndp::NeighborAdvertPacket,
         src_addr: &Ipv6Addr,
         dst_addr: &Ipv6Addr,
@@ -108,60 +187,3 @@ pub fn generate_NA_proxied<'a>(original_packet: &'a ndp::NeighborAdvertPacket,
     Some(ret.consume_to_immutable())
 }
 */
-
-pub fn generate_NA_forwarded<'a>(
-        src_addr: &Ipv6Addr,
-        dst_addr: &Ipv6Addr,
-        proxied_addr: &Ipv6Addr,
-        src_hwaddr: &MacAddr,
-        flag: u8,
-        ) -> Option<ndp::NeighborAdvertPacket <'a>> {
-
-    let pkt_buf: Vec<u8> = vec![0; 32];
-    let mut ret = match ndp::MutableNeighborAdvertPacket::owned(pkt_buf) {
-        Some(v) => v,
-        None => return None,
-    };
-    // basic info
-    ret.set_icmpv6_type(icmpv6::Icmpv6Types::NeighborAdvert);
-    // set the to-be-announced addr
-    ret.set_target_addr(*proxied_addr);
-    // force O flag to be 0
-    ret.set_flags(flag);
-    ret.set_flags(ret.get_flags() & 0xdf);
-    // update the option field if needed
-    // TODO: carefully deal with it with reference to RFC 4861/RFC 4389
-    let mut new_options: Vec<ndp::NdpOption> = Vec::new();
-    new_options.push(
-        ndp::NdpOption{
-            option_type: ndp::NdpOptionTypes::TargetLLAddr,
-            length: 1,
-            data: src_hwaddr.octets().to_vec()});
-    ret.set_options(&new_options);
-    //
-    let csum = pnet::util::ipv6_checksum(
-        ret.packet(), 1, &[], src_addr, dst_addr, pnet::packet::ip::IpNextHeaderProtocols::Icmpv6);
-    ret.set_checksum(csum);
-
-    Some(ret.consume_to_immutable())
-}
-
-pub fn generate_NS_trick<'a>(original_packet: &'a ndp::NeighborSolicitPacket,
-        src_addr: &Ipv6Addr,
-        dst_addr: &Ipv6Addr,
-        ) -> Option<Icmpv6Packet <'a>> {
-
-    let pkt_buf: Vec<u8> = vec![0; original_packet.packet_size()+Icmpv6Packet::minimum_packet_size()];
-    let mut ret = MutableIcmpv6Packet::owned(pkt_buf).unwrap();
-    // update the option field if needed
-    // convert it into a icmp echo request
-    ret.set_icmpv6_type(icmpv6::Icmpv6Types::EchoRequest);
-    ret.set_payload(original_packet.packet());
-    //
-    let csum = pnet::util::ipv6_checksum(
-        ret.packet(), 1, &[], src_addr, dst_addr, pnet::packet::ip::IpNextHeaderProtocols::Icmpv6);
-    ret.set_checksum(csum);
-
-    Some(ret.consume_to_immutable())
-}
-//TODO: tests
