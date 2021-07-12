@@ -2,9 +2,10 @@ use crate::conf;
 use pnet::datalink;
 use pnet::util::MacAddr;
 use socket2::{Domain, Protocol, Socket, Type};
+use std::collections::HashMap;
 use std::net::{IpAddr, Ipv6Addr, SocketAddrV6};
 
-#[derive(getset::Getters, Clone, Debug)]
+#[derive(getset::Getters, Clone, Debug, PartialEq)]
 pub struct NDInterface {
     #[get = "pub with_prefix"]
     name: String,
@@ -52,20 +53,20 @@ fn get_specified_iface(raw: datalink::NetworkInterface) -> Option<NDInterface> {
 }
 
 // given a list of names of interfaces, return a list of NDInterfaces
-fn get_ifaces_with_name(names: &[String]) -> Vec<NDInterface> {
-    let mut ret = Vec::new();
+pub fn get_ifaces_with_name(names: &[String]) -> HashMap<u32, NDInterface> {
+    let mut ret = HashMap::new();
 
     if names.contains(&String::from("*")) {
         for iface in datalink::interfaces() {
             if let Some(v) = get_specified_iface(iface) {
-                ret.push(v)
+                ret.insert(v.scope_id, v);
             }
         }
     } else {
         for iface in datalink::interfaces() {
             if names.contains(&iface.name) {
                 if let Some(v) = get_specified_iface(iface) {
-                    ret.push(v)
+                    ret.insert(v.scope_id, v);
                 }
             }
         }
@@ -77,7 +78,7 @@ fn get_ifaces_with_name(names: &[String]) -> Vec<NDInterface> {
 // return the proxied interface and the forwarded interface
 pub fn get_ifaces_defined_by_config(
     ndconf: &conf::NDConfig,
-) -> (Vec<NDInterface>, Vec<NDInterface>) {
+) -> (HashMap<u32, NDInterface>, HashMap<u32, NDInterface>) {
     let proxied_ifaces = get_ifaces_with_name(&ndconf.get_proxied_ifaces());
     let forwarded_ifaces = get_ifaces_with_name(&ndconf.get_forwarded_ifaces());
     (proxied_ifaces, forwarded_ifaces)
@@ -88,9 +89,9 @@ pub fn get_ifaces_defined_by_config(
  * bind to its link local address
  * set hop limit to 255
  */
-pub fn prepare_sockets_for_ifaces(ifaces: &[NDInterface]) -> Vec<Socket> {
-    let mut senders = Vec::new();
-    for iface in ifaces.iter() {
+pub fn prepare_sockets_for_ifaces(ifaces: &HashMap<u32, NDInterface>) -> HashMap<u32, Socket> {
+    let mut senders = HashMap::new();
+    for (scope_id, iface) in ifaces.iter() {
         //
         let iface_sender = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::ICMPV6)).unwrap();
         let addr = SocketAddrV6::new(*iface.get_link_addr(), 0, 0, *iface.get_scope_id());
@@ -99,7 +100,7 @@ pub fn prepare_sockets_for_ifaces(ifaces: &[NDInterface]) -> Vec<Socket> {
         let _res = iface_sender.set_multicast_hops_v6(255).unwrap();
         let _res = iface_sender.set_unicast_hops_v6(255).unwrap();
         //
-        senders.push(iface_sender);
+        senders.insert(*scope_id, iface_sender);
     }
     senders
 }
