@@ -1,10 +1,10 @@
 use crate::address;
 use crate::conf;
+use crate::datalink;
 use crate::interfaces;
-use crate::neighors;
+use crate::neighbors;
 use crate::packets;
 use log::{debug, info, trace, warn};
-use pnet::datalink;
 use pnet::packet::icmpv6::ndp;
 use pnet::packet::icmpv6::Icmpv6Types;
 use pnet::packet::Packet;
@@ -28,15 +28,16 @@ pub struct NeighborDiscoveryProxyItem {
     proxied_if_senders: HashMap<u32, Socket>,
     forwarded_ifaces: HashMap<u32, interfaces::NDInterface>,
     forwarded_if_senders: HashMap<u32, Socket>,
-    neighbor_handle: neighors::Neighbors,
+    neighbor_handle: neighbors::Neighbors,
     // TODO: whether I should set Router flag
 }
 
 impl NeighborDiscoveryProxyItem {
     pub fn new(config: conf::NDConfig) -> Self {
         let (proxied_ifaces, forwarded_ifaces) = interfaces::get_ifaces_defined_by_config(&config);
-        let neighbor_handle = neighors::Neighbors::new();
+        let neighbor_handle = neighbors::Neighbors::new();
         let proxied_if_senders = interfaces::prepare_sockets_for_ifaces(&proxied_ifaces);
+        // TODO: skip when 'static'
         let forwarded_if_senders = interfaces::prepare_sockets_for_ifaces(&forwarded_ifaces);
 
         /*
@@ -232,18 +233,7 @@ fn monitor_NS(
     if mpsc_txes.is_empty() {
         return;
     }
-    // assume it is ethernet
-    // TODO: try to determine what link type it is.
-    let mut monitor_config: datalink::Config = Default::default();
-    monitor_config.channel_type = datalink::ChannelType::Layer3(0x86DD);
-    // initialize the monitor
-    let (_tx, mut monitor) = match datalink::channel(proxied_iface.get_from_pnet(), monitor_config)
-    {
-        Ok(datalink::Channel::Ethernet(tx, rx)) => (tx, rx),
-        Ok(_) => panic!("Unknown channel type"),
-        Err(e) => panic!("Error happened {}", e),
-    };
-    drop(_tx);
+    let mut monitor = datalink::create_datalink_monitor(&proxied_iface);
     // logging warn
     warn!(
         "Initialized _Neighbor Solicitation_ monitor on interface {:?}.\n\

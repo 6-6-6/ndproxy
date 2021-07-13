@@ -1,7 +1,8 @@
 mod address;
 mod conf;
+mod datalink;
 mod interfaces;
-mod neighors;
+mod neighbors;
 mod packets;
 mod proxy;
 
@@ -29,23 +30,3 @@ async fn main() -> Result<(), ()> {
     proxy::spawn_monitors_and_forwarders(myconf);
     Ok(())
 }
-
-/*
-        let (mpsc_tx, mpsc_rx) = channel();
-
-        for (_id, iface) in self.proxied_ifaces.iter() {
-            //
-            let id = _id.clone();
-            let tx = mpsc_tx.clone();
-            let iface = iface.clone();
-            let pfx = *self.config.get_proxied_pfx();
-            //
-            let _handle = thread::Builder::new()
-                .name(format!(
-                    "[{}] NS Listener: {}",
-                    self.config.get_name(),
-                    iface.get_name()
-                ))
-                .spawn(move || monitor_NS(iface, id, pfx, tx));
-        }
-*/
