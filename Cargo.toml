@@ -3,7 +3,10 @@ name = "ndproxy"
 version = "0.1.0"
 authors = ["Zhang Zongyu <zongyu@novazy.net>"]
 edition = "2018"
-
+license = "MIT"
+repository = "https://github.com/6-6-6/ndproxy"
+homepage = "https://github.com/6-6-6/ndproxy"
+readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 

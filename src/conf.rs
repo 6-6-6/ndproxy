@@ -100,7 +100,7 @@ impl NDConfig {
 
         /*
          * extra recipe: rewrite the address
-         * let's say your network relys on Network Prefix Translation.
+         * let's say your network relies on Network Prefix Translation.
          *
          * For instance:
          *   2001:db8:1::/64                  2001:db8:ffff::/64

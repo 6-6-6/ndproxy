@@ -20,7 +20,7 @@ async fn main() -> Result<(), ()> {
         ap.refer(&mut config_filename).add_option(
             &["-c", "--conf"],
             Store,
-            "The location of your config file. Default: ./noproxy.toml",
+            "The location of your config file. Default: ./npproxy.toml",
         );
         ap.parse_args_or_exit();
     }
