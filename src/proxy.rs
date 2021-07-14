@@ -43,14 +43,6 @@ impl NeighborDiscoveryProxyItem {
         // TODO: skip when 'static'
         let forwarded_if_senders = interfaces::prepare_sockets_for_ifaces(&forwarded_ifaces);
 
-        /*
-        let proxied_if_info: Vec<String> =
-            proxied_ifaces.iter().map(|x| x.get_basic_info()).collect();
-        let forwarded_if_info: Vec<String> = forwarded_ifaces
-            .iter()
-            .map(|x| x.get_basic_info())
-            .collect();
-        */
         // logging warn
         warn!(
             "Initializing NeighborDiscoveryProxyItem...\n\
@@ -286,7 +278,7 @@ fn monitor_NS(
         };
         // check the header of Icmpv6 (there platforms that do not support BPF)
         if packet[40] == Icmpv6Types::NeighborSolicit.0 {
-            let the_ndp = match ndp::NeighborSolicitPacket::owned(packet[40..].to_vec()) {
+            let the_ndp = match ndp::NeighborSolicitPacket::new(&packet[40..]) {
                 Some(v) => v,
                 None => continue,
             };
