@@ -25,6 +25,13 @@ async fn main() -> Result<(), ()> {
         ap.parse_args_or_exit();
     }
 
+    // terminate the program if any thread get panicked
+    let default_panic = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        default_panic(info);
+        std::process::exit(1);
+    }));
+
     let myconf = conf::parse_config(&config_filename);
     // TODO: support multiple sections
     proxy::spawn_monitors_and_forwarders(myconf);

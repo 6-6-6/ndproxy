@@ -1,6 +1,7 @@
 use crate::address;
 use crate::conf;
 use crate::datalink;
+use crate::datalink::PacketReceiverOpts;
 use crate::interfaces;
 use crate::neighbors;
 use crate::packets;
@@ -13,6 +14,8 @@ use std::collections::HashMap;
 use std::net::{Ipv6Addr, SocketAddrV6};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
+
+type ProxyNSPack<'a> = (ndp::NeighborSolicitPacket<'a>, u32, Ipv6Addr);
 
 /*
  * an object the reveives NS packets from the monitor,
@@ -76,7 +79,7 @@ impl NeighborDiscoveryProxyItem {
      * accept a mpsc_receiver, and
      *   pass the rx to self.process_NS_* to process upstream NSes
      */
-    pub fn run(&self, mpsc_rx: Receiver<(ndp::NeighborSolicitPacket, u32, Ipv6Addr)>) {
+    pub fn run(&self, mpsc_rx: Receiver<ProxyNSPack>) {
         if *self.config.get_proxy_type() == conf::PROXY_STATIC {
             self.process_NS_static(mpsc_rx)
         } else if *self.config.get_proxy_type() == conf::PROXY_FORWARD {
@@ -85,7 +88,7 @@ impl NeighborDiscoveryProxyItem {
     }
 
     #[allow(non_snake_case)]
-    fn process_NS_static(&self, mpsc_rx: Receiver<(ndp::NeighborSolicitPacket, u32, Ipv6Addr)>) {
+    fn process_NS_static(&self, mpsc_rx: Receiver<ProxyNSPack>) {
         loop {
             // receive msg from mpsc transmitter
             let (the_ndp, ndp_receiver_id, node_addr) = match mpsc_rx.recv() {
@@ -98,7 +101,7 @@ impl NeighborDiscoveryProxyItem {
     }
 
     #[allow(non_snake_case)]
-    fn process_NS_forward(&self, mpsc_rx: Receiver<(ndp::NeighborSolicitPacket, u32, Ipv6Addr)>) {
+    fn process_NS_forward(&self, mpsc_rx: Receiver<ProxyNSPack>) {
         loop {
             // receive msg from mpsc transmitter
             let (the_ndp, ndp_receiver_id, node_addr) = match mpsc_rx.recv() {
@@ -126,12 +129,14 @@ impl NeighborDiscoveryProxyItem {
                     packets::generate_NS_trick(&the_ndp, iface.get_link_addr(), &addr.ip()).expect(
                         "Failed while generating Echo Request Message for detecting neighbors.",
                     );
-                let _ret = sender.send_to(send_pkt.packet(), &addr.into());
+                let send_ret = sender.send_to(send_pkt.packet(), &addr.into());
                 // logging debug
                 debug!(
-                    "Discovering Neighbor {:?} on interface {:?}",
+                    "Discovering Neighbor {:?} on interface {:?}, the result of sending this packet (icmpv6 type {:?}) is {:?}",
                     tgt_addr,
-                    iface.get_name()
+                    iface.get_name(),
+                    send_pkt.get_icmpv6_type(),
+                    send_ret
                 );
                 // End of logging
             }
@@ -152,6 +157,11 @@ impl NeighborDiscoveryProxyItem {
         the_ndp: ndp::NeighborSolicitPacket,
         ndp_receiver_id: u32,
     ) {
+        /*
+        println!("{:?}", self
+        .neighbor_handle
+        .check_whehter_entry_exists_sync(&tgt_addr));
+        */
         if let Some((_mac, scope_id)) = self
             .neighbor_handle
             .check_whehter_entry_exists_sync(&tgt_addr)
@@ -223,7 +233,7 @@ impl NeighborDiscoveryProxyItem {
 fn monitor_NS(
     proxied_iface: interfaces::NDInterface,
     proxied_id: u32,
-    mpsc_txes: HashMap<ipnet::Ipv6Net, Sender<(ndp::NeighborSolicitPacket, u32, Ipv6Addr)>>,
+    mpsc_txes: HashMap<ipnet::Ipv6Net, Sender<ProxyNSPack>>,
 ) {
     /*
      * The truth that mpsc_txes is empty indicates that
@@ -233,7 +243,33 @@ fn monitor_NS(
     if mpsc_txes.is_empty() {
         return;
     }
-    let mut monitor = datalink::create_datalink_monitor(&proxied_iface);
+    // create the monitor, and set it up
+    let mut monitor = datalink::PacketReceiver::new();
+    let _ret = monitor.bind_to_interface(&proxied_iface);
+    _ret.unwrap_or_else(|_| {
+        panic!(
+            "Failed to bind to interface {}, the process returned {:?}",
+            proxied_iface.get_name(),
+            _ret
+        )
+    });
+    let _ret = monitor.set_filter_pass_ipv6_ns();
+    _ret.unwrap_or_else(|_| {
+        panic!(
+            "Failed to set the packet filter on interface {}, the process returned {:?}",
+            proxied_iface.get_name(),
+            _ret
+        )
+    });
+    let _ret = monitor.set_promiscuous(&proxied_iface);
+    _ret.unwrap_or_else(|_| {
+        panic!(
+            "Failed to enable promiscuous mode on interface {}, the process returned {:?}",
+            proxied_iface.get_name(),
+            _ret
+        )
+    });
+    //*/
     // logging warn
     warn!(
         "Initialized _Neighbor Solicitation_ monitor on interface {:?}.\n\
@@ -245,10 +281,10 @@ fn monitor_NS(
     //
     loop {
         let packet = match monitor.next() {
-            Ok(v) => v,
-            Err(_) => continue,
+            Some(v) => v,
+            None => continue,
         };
-        // check the header of Icmpv6
+        // check the header of Icmpv6 (there platforms that do not support BPF)
         if packet[40] == Icmpv6Types::NeighborSolicit.0 {
             let the_ndp = match ndp::NeighborSolicitPacket::owned(packet[40..].to_vec()) {
                 Some(v) => v,
@@ -257,8 +293,9 @@ fn monitor_NS(
             let ns_target_addr = the_ndp.get_target_addr();
             // logging trace
             trace!(
-                "Got a neighbor solicitation from {:?} for {:?} on interface {:?}.",
+                "Got a neighbor solicitation from {:?} to {:?} for {:?} on interface {:?}.",
                 address::construct_v6addr_from_vecu8(&packet[8..24]),
+                address::construct_v6addr_from_vecu8(&packet[24..40]),
                 ns_target_addr,
                 proxied_iface.get_name()
             );
@@ -278,21 +315,16 @@ fn monitor_NS(
     }
 }
 
-fn preapre_monitors_and_forwarders<'a>(
+// to simplify the types beloww
+type MonitorPack<'a> = (NeighborDiscoveryProxyItem, Receiver<ProxyNSPack<'a>>);
+type ForwarderPack<'a> = (
+    interfaces::NDInterface,
+    HashMap<ipnet::Ipv6Net, Sender<ProxyNSPack<'a>>>,
+);
+
+fn prepare_monitors_and_forwarders<'a>(
     mut conf_items: Vec<conf::NDConfig>,
-) -> (
-    Vec<(
-        NeighborDiscoveryProxyItem,
-        Receiver<(ndp::NeighborSolicitPacket<'a>, u32, Ipv6Addr)>,
-    )>,
-    HashMap<
-        u32,
-        (
-            interfaces::NDInterface,
-            HashMap<ipnet::Ipv6Net, Sender<(ndp::NeighborSolicitPacket<'a>, u32, Ipv6Addr)>>,
-        ),
-    >,
-) {
+) -> (Vec<MonitorPack<'a>>, HashMap<u32, ForwarderPack<'a>>) {
     let mut proxy_forwarders = Vec::new();
     let mut tx_vec = Vec::new();
 
@@ -316,10 +348,9 @@ fn preapre_monitors_and_forwarders<'a>(
          */
         for ((proxy_item, _rx), tx) in proxy_forwarders.iter().zip(tx_vec.iter()) {
             if let Some(_iface) = proxy_item.get_proxied_ifaces().get(&scope_id) {
-                if let Some(_tx) = mpsc_txes.insert(
-                    proxy_item.get_config().get_proxied_pfx().clone(),
-                    tx.clone(),
-                ) {
+                if let Some(_tx) =
+                    mpsc_txes.insert(*proxy_item.get_config().get_proxied_pfx(), tx.clone())
+                {
                     panic!(
                         "I did not expect that there are multiple same prefixes\
                          in the configuration file."
@@ -338,7 +369,7 @@ fn preapre_monitors_and_forwarders<'a>(
 }
 
 pub fn spawn_monitors_and_forwarders(conf_items: Vec<conf::NDConfig>) {
-    let (mut forwarders, mut monitors) = preapre_monitors_and_forwarders(conf_items);
+    let (mut forwarders, mut monitors) = prepare_monitors_and_forwarders(conf_items);
     let mut handles = Vec::new();
     // spawn all the monitors
     for (id, (monitored_iface, mpsc_txes)) in monitors.drain() {

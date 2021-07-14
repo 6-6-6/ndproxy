@@ -83,29 +83,6 @@ pub fn generate_NS_trick<'a>(
  * and to forward the reply NA packets to upstream
  * maybe unmasked someday.
 
- // ICMP6Filter that can be applied by setsockopt()
-#[derive(Debug, Clone)]
-pub struct ICMP6Filter {
-    filters: [u32;8]
-}
-
-impl ICMP6Filter {
-    pub fn new(default: u32) -> Self {
-        ICMP6Filter {
-            filters: [default;8]
-        }
-    }
-
-    pub fn set_pass(&mut self, icmp6_type: u8) {
-        let index:usize = icmp6_type.into();
-        self.filters[index >> 5] &= !(1u32 << (icmp6_type & 31));
-    }
-
-    pub unsafe fn as_ptr_cvoid(&mut self) -> *const libc::c_void{
-        self.filters.as_mut_ptr() as *const libc::c_void
-    }
-}
-
 // generate NS packet from the old one
 pub fn generate_NS_proxied<'a>(original_packet: &'a ndp::NeighborSolicitPacket,
         src_addr: &Ipv6Addr,
