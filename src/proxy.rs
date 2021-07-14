@@ -208,13 +208,14 @@ impl NeighborDiscoveryProxyItem {
             .unwrap();
         }
 
+        let ret = iface_sender.send_to(pkt.packet(), &tgt.into());
         // logging info
         info!(
             "Sent NA for {:?} to {:?} on {:?} and the process returns {:?}",
             proxied_addr,
             tgt.ip(),
             iface.get_name(),
-            iface_sender.send_to(pkt.packet(), &tgt.into())
+            ret
         );
         // End of logging
     }
