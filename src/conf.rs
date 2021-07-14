@@ -14,15 +14,22 @@ pub struct NDConfig {
     #[get = "pub with_prefix"]
     forwarded_ifaces: Vec<String>,
     #[get = "pub with_prefix"]
-    rewrite: bool,
+    address_mangling: u8,
     #[get = "pub with_prefix"]
     dst_pfx: Ipv6Net,
 }
 
 const PROXY_FORWARD_STRING: &str = "forward";
+const ADDRESS_NETMAP_STRING: &str = "netmap";
+const ADDRESS_NPT_STRING: &str = "npt";
 
+// proxy types
 pub const PROXY_STATIC: u8 = 0;
 pub const PROXY_FORWARD: u8 = 1;
+// address mangling methods
+pub const ADDRESS_NOCHANGE: u8 = 0;
+pub const ADDRESS_NETMAP: u8 = 1;
+pub const ADDRESS_NPT: u8 = 2;
 
 impl NDConfig {
     pub fn new(name: &str, config_table: HashMap<String, config::Value>) -> Self {
@@ -39,9 +46,9 @@ impl NDConfig {
 
         let proxy_type: u8;
         if proxy_type_string == PROXY_FORWARD_STRING {
-            proxy_type = 1;
+            proxy_type = PROXY_FORWARD;
         } else {
-            proxy_type = 0;
+            proxy_type = PROXY_STATIC;
         }
 
         /*
@@ -114,15 +121,29 @@ impl NDConfig {
          * ```
          */
         let dst_pfx: Ipv6Net;
-        let rewrite: bool;
-        match config_table.get("rewrite") {
+        let address_mangling: u8;
+        match config_table.get("rewrite_method") {
             Some(v) => {
-                dst_pfx = v.clone().into_str().unwrap().parse().unwrap();
-                rewrite = true;
+                let how_to_mangle = v.clone().into_str().unwrap();
+                dst_pfx = config_table
+                    .get("local_prefix")
+                    .unwrap()
+                    .clone()
+                    .into_str()
+                    .unwrap()
+                    .parse()
+                    .unwrap();
+                if how_to_mangle == ADDRESS_NETMAP_STRING {
+                    address_mangling = ADDRESS_NETMAP;
+                } else if how_to_mangle == ADDRESS_NPT_STRING {
+                    address_mangling = ADDRESS_NPT;
+                } else {
+                    address_mangling = ADDRESS_NOCHANGE;
+                }
             }
             None => {
                 dst_pfx = proxied_pfx;
-                rewrite = false;
+                address_mangling = ADDRESS_NOCHANGE;
             }
         }
 
@@ -132,7 +153,7 @@ impl NDConfig {
             proxied_pfx,
             proxied_ifaces,
             forwarded_ifaces,
-            rewrite,
+            address_mangling,
             dst_pfx,
         }
     }
@@ -168,7 +189,7 @@ fn test_config_parser() {
         proxied_pfx: "2001:db8::/64".parse().unwrap(),
         proxied_ifaces: vec![String::from("*")],
         forwarded_ifaces: vec![String::from("*")],
-        rewrite: false,
+        address_mangling: ADDRESS_NOCHANGE,
         dst_pfx: "2001:db8::/64".parse().unwrap(),
     };
     let result2 = NDConfig {
@@ -177,7 +198,7 @@ fn test_config_parser() {
         proxied_pfx: "2001:db8::/64".parse().unwrap(),
         proxied_ifaces: vec![String::from("lo")],
         forwarded_ifaces: vec![String::from("veth0")],
-        rewrite: true,
+        address_mangling: ADDRESS_NETMAP,
         dst_pfx: "2001:db9::/64".parse().unwrap(),
     };
     let result3 = NDConfig {
@@ -186,7 +207,7 @@ fn test_config_parser() {
         proxied_pfx: "2001:db8::/64".parse().unwrap(),
         proxied_ifaces: vec![String::from("lo"), String::from("eth0")],
         forwarded_ifaces: vec![String::from("veth0")],
-        rewrite: true,
+        address_mangling: ADDRESS_NPT,
         dst_pfx: "2001:db9::/64".parse().unwrap(),
     };
 

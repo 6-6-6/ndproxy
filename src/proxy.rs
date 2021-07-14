@@ -94,24 +94,28 @@ impl NeighborDiscoveryProxyItem {
 
     #[allow(non_snake_case)]
     fn process_NS_forward(&self, mpsc_rx: Receiver<ProxyNSPack>) {
+        let upstream_pfx_csum = address::pfx_csum(self.config.get_proxied_pfx());
+        let downstream_pfx_csum = address::pfx_csum(self.config.get_dst_pfx());
+        let pfx_len = self.config.get_dst_pfx().prefix_len();
         loop {
             // receive msg from mpsc transmitter
             let (the_ndp, ndp_receiver_id, node_addr) = match mpsc_rx.recv() {
                 Ok(v) => v,
                 Err(_) => continue,
             };
-            // determine the target address: whether we need to rewrite it
-            let tgt_addr;
-            if *self.config.get_rewrite() {
-                let target_prefix = self.config.get_dst_pfx();
-                let net_u128 = u128::from_be_bytes(the_ndp.get_target_addr().octets())
-                    & u128::from_be_bytes(target_prefix.hostmask().octets());
-                let prefix_u128 = u128::from_be_bytes(target_prefix.addr().octets())
-                    & u128::from_be_bytes(target_prefix.netmask().octets());
-                tgt_addr = Ipv6Addr::from((prefix_u128 + net_u128).to_be_bytes());
-            } else {
-                tgt_addr = the_ndp.get_target_addr();
-            }
+            // determine the target address: whether we need to rewrite it and how to rewrite it
+            let tgt_addr = match *self.config.get_address_mangling() {
+                conf::ADDRESS_NETMAP => {
+                    address::netmapv6(the_ndp.get_target_addr(), self.config.get_dst_pfx())
+                }
+                conf::ADDRESS_NPT => address::nptv6(
+                    upstream_pfx_csum,
+                    downstream_pfx_csum,
+                    ipnet::Ipv6Net::new(the_ndp.get_target_addr(), pfx_len).unwrap(),
+                    *self.config.get_dst_pfx(),
+                ),
+                _ => the_ndp.get_target_addr(),
+            };
             // play some trick, ask our OS to discover its neighbor
             for (scope_id, iface) in self.forwarded_ifaces.iter() {
                 let sender = self.forwarded_if_senders.get(scope_id).unwrap();

@@ -20,13 +20,14 @@ Optional arguments:
 You can find an example of configuration file [here](https://github.com/6-6-6/ndproxy/blob/master/example.config.toml).
 
 ## extra recipe: rewrite the prefix
-Let's say your network has multiple upstreams and relies on Network Prefix Translation.
+Let's say your network has multiple upstreams and relies on [Network Prefix Translation](https://datatracker.ietf.org/doc/html/rfc6296)
+(or [NETMAP](https://www.netfilter.org/documentation/HOWTO/netfilter-extensions-HOWTO-4.html#ss4.4)).
 
 For instance:
 ```
         2001:db8:1::/64                  2001:db8:ffff::/64
               ↑                                  ↑        ↑
-             ISP1                               ISP2    Other Users
+        ISP1, translated via NETMAP        ISP2, NPTv6   Other Users
               |-------- fec1:2:3:4::/64 ---------|
                               ↑
                       your local devices
@@ -41,13 +42,15 @@ you may want a config like:
 [ndp.ISP1]
 type = "forward"
 proxied_prefix = "2001:db8:1::/64"
-rewrite = "fec1:2:3:4::/64"
+rewrite_method = "netmap"
+local_prefix = "fec1:2:3:4::/64"
 <redacted>
 
 [ndp.ISP2]
 type = "forward"
 proxied_prefix = "2001:db8:ffff::/64"
-rewrite = "fec1:2:3:4::/64"
+rewrite_method = "npt"
+local_prefix= "fec1:2:3:4::/64"
 <redacted>
 ```
 
