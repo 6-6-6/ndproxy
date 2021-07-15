@@ -39,10 +39,14 @@ impl NeighborDiscoveryProxyItem {
     pub fn new(config: conf::NDConfig) -> Self {
         let (proxied_ifaces, forwarded_ifaces) = interfaces::get_ifaces_defined_by_config(&config);
         let neighbor_handle = neighbors::Neighbors::new();
+        // to send NS to upstream
         let proxied_if_senders = interfaces::prepare_sockets_for_ifaces(&proxied_ifaces);
-        // TODO: skip when 'static'
-        let forwarded_if_senders = interfaces::prepare_sockets_for_ifaces(&forwarded_ifaces);
-
+        // to trigger Neighbor Discovery locally
+        let forwarded_if_senders;
+        match *config.get_proxy_type() {
+            conf::PROXY_STATIC => forwarded_if_senders = HashMap::new(),
+            _ => forwarded_if_senders = interfaces::prepare_sockets_for_ifaces(&forwarded_ifaces),
+        };
         // logging warn
         warn!(
             "Initializing NeighborDiscoveryProxyItem...\n\
@@ -390,7 +394,7 @@ pub fn spawn_monitors_and_forwarders(conf_items: Vec<conf::NDConfig>) {
     }
 
     while let Some(handle) = handles.pop() {
-        // TODO: should I get panicked on every thread that quit abnormally?
+        // hold on
         let _ret = handle.join();
     }
 }

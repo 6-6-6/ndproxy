@@ -33,7 +33,6 @@ async fn main() -> Result<(), ()> {
     }));
 
     let myconf = conf::parse_config(&config_filename);
-    // TODO: support multiple sections
     proxy::spawn_monitors_and_forwarders(myconf);
     Ok(())
 }
