@@ -20,7 +20,7 @@ Optional arguments:
 You can find an example of configuration file [here](https://github.com/6-6-6/ndproxy/blob/master/example.config.toml).
 
 ## extra recipe: rewrite the prefix
-Let's say your network has multiple upstreams and relies on [Network Prefix Translation](https://datatracker.ietf.org/doc/html/rfc6296)
+Let's say your network has multiple upstreams and relies on [Network Prefix Translation (RFC 6296)](https://datatracker.ietf.org/doc/html/rfc6296)
 (or [NETMAP](https://www.netfilter.org/documentation/HOWTO/netfilter-extensions-HOWTO-4.html#ss4.4)).
 
 For instance:
