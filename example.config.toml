@@ -7,4 +7,7 @@ proxied_ifaces = [ "eth0" ]
 # downstream
 forwarded_ifaces = "eth1"
 # enable it if your local network has a different prefix
-# rewrite = "2001:dead:beef::/64"
+# one of: "netmap" | "npt"
+#rewrite_method = "netmap"
+# prefix of your local network
+#local_prefix"2001:dead:beef::/64"
