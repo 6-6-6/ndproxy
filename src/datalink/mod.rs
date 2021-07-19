@@ -1,8 +1,6 @@
 //#[cfg(target_os = "linux")]
 pub mod linux;
 pub use linux::*;
-
-// platform independent mod
 pub mod bpf;
 
 use crate::interfaces;
