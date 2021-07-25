@@ -15,13 +15,12 @@ pub fn construct_v6addr_from_vecu8(local_addr: &[u8]) -> Ipv6Addr {
 
 /// calculate checksum for NPTv6
 pub fn pfx_csum(prefix: &Ipv6Net) -> u16 {
-    let mut ret: u16 = 0;
+    let mut ret: i32 = 0;
     for x in prefix.network().segments().iter() {
-        let (_ret, _overflow) = ret.overflowing_add(*x);
-        ret = _ret;
+        ret += *x as i32;
     }
 
-    (ret % 0xffff) ^ 0xffff
+    ((ret.rem_euclid(0xffff)) ^ 0xffff) as u16
 }
 
 /// see https://datatracker.ietf.org/doc/html/rfc6296
@@ -36,8 +35,7 @@ pub fn nptv6(
     let downstream_segs = downstream_pfx.network().segments();
     let to_be_translated_segment = segments[pfx_len as usize];
 
-    let (sum1, _overflowing) = downstream_pfx_csum.overflowing_sub(upstream_pfx_csum);
-    let (sum2, _overflowing) = sum1.overflowing_add(to_be_translated_segment);
+    let sum2 = downstream_pfx_csum as i32 - upstream_pfx_csum as i32 + to_be_translated_segment as i32;
 
     let mut i: usize = 0;
     while i < pfx_len as usize {
@@ -45,7 +43,7 @@ pub fn nptv6(
         i += 1;
     }
 
-    segments[pfx_len as usize] = sum2 % 0xffff;
+    segments[pfx_len as usize] = sum2.rem_euclid(0xffff) as u16;
     Ipv6Addr::from(segments)
 }
 
