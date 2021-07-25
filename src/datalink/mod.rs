@@ -1,7 +1,6 @@
 //#[cfg(target_os = "linux")]
 pub mod linux;
 pub use linux::*;
-pub mod bpf;
 
 use crate::interfaces;
 use socket2::{Domain, Protocol, Socket, Type};
