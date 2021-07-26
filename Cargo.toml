@@ -11,6 +11,7 @@ readme = "README.md"
 
 
 [dependencies]
+address_translation = { git = "https://github.com/6-6-6/utils" }
 argparse = "0.2.2"
 classic_bpf = { git = "https://github.com/6-6-6/classic_bpf" }
 config = { version = "0.11", features = ["toml"] }

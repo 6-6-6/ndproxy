@@ -1,4 +1,3 @@
-use crate::address;
 use futures::executor::block_on;
 use futures::stream::TryStreamExt;
 use netlink_packet_route::rtnl::neighbour::nlas::Nla;
@@ -44,7 +43,7 @@ impl Neighbors {
             let mut iter_through_nlas = entry.nlas.iter();
             while let Some(Nla::Destination(destip)) = iter_through_nlas.next() {
                 // break if this entry does not match our requested address.
-                if &address::construct_v6addr_from_vecu8(destip) != my_entry {
+                if &unsafe { address_translation::construct_v6addr(destip) } != my_entry {
                     break;
                 };
                 match entry.header.state {

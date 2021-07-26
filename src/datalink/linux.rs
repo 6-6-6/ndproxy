@@ -1,9 +1,9 @@
 use crate::datalink::{PacketReceiver, PacketReceiverOpts};
 use crate::interfaces;
+use classic_bpf::*;
 use pnet::packet::icmpv6::Icmpv6Types;
 use std::mem::size_of;
 use std::os::unix::io::AsRawFd;
-use classic_bpf::*;
 
 impl PacketReceiverOpts for PacketReceiver {
     fn bind_to_interface(&self, iface: &interfaces::NDInterface) -> Result<(), i32> {

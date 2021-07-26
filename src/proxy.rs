@@ -99,11 +99,12 @@ impl NeighborDiscoveryProxyItem {
     #[allow(non_snake_case)]
     fn process_NS_forward(&self, mpsc_rx: Receiver<ProxyNSPack>) {
         // for NPTv6
-        let upstream_pfx_csum = address::pfx_csum(self.config.get_proxied_pfx());
-        let downstream_pfx_csum = address::pfx_csum(self.config.get_dst_pfx());
+        let upstream_pfx_csum = address_translation::pfx_csum(self.config.get_proxied_pfx());
+        let downstream_pfx_csum = address_translation::pfx_csum(self.config.get_dst_pfx());
         let pfx_len = self.config.get_dst_pfx().prefix_len();
         // for RFC 4291#section-2.6.1
-        let no_response_addresses = address::get_no_forwarding_addresses(self.config.get_proxied_pfx());
+        let no_response_addresses =
+            address::get_no_forwarding_addresses(self.config.get_proxied_pfx());
         loop {
             // receive msg from mpsc transmitter
             let (the_ndp, ndp_receiver_id, node_addr) = match mpsc_rx.recv() {
@@ -112,13 +113,16 @@ impl NeighborDiscoveryProxyItem {
                 Err(_) => continue,
             };
             let original_requested_address = the_ndp.get_target_addr();
-            if no_response_addresses.contains(&original_requested_address) { continue };
+            if no_response_addresses.contains(&original_requested_address) {
+                continue;
+            };
             // determine the target address: whether we need to rewrite it and how to rewrite it
             let tgt_addr = match *self.config.get_address_mangling() {
-                conf::ADDRESS_NETMAP => {
-                    address::netmapv6(original_requested_address, self.config.get_dst_pfx())
-                }
-                conf::ADDRESS_NPT => address::nptv6(
+                conf::ADDRESS_NETMAP => address_translation::netmapv6(
+                    original_requested_address,
+                    self.config.get_dst_pfx(),
+                ),
+                conf::ADDRESS_NPT => address_translation::nptv6(
                     upstream_pfx_csum,
                     downstream_pfx_csum,
                     ipnet::Ipv6Net::new(original_requested_address, pfx_len).unwrap(),
@@ -299,18 +303,21 @@ fn monitor_NS(
             };
             let ns_target_addr = the_ndp.get_target_addr();
             // logging trace
-            trace!(
-                "Got a neighbor solicitation from {:?} to {:?} for {:?} on interface {:?}.",
-                address::construct_v6addr_from_vecu8(&packet[8..24]),
-                address::construct_v6addr_from_vecu8(&packet[24..40]),
-                ns_target_addr,
-                proxied_iface.get_name()
-            );
+            unsafe {
+                trace!(
+                    "Got a neighbor solicitation from {:?} to {:?} for {:?} on interface {:?}.",
+                    address_translation::construct_v6addr(&packet[8..24]),
+                    address_translation::construct_v6addr(&packet[24..40]),
+                    ns_target_addr,
+                    proxied_iface.get_name()
+                )
+            };
             // End of Logging
             // send clone of the NS packet to _every_ receiver that matches this prefix (maybe too expensive)
             for (pfx, mpsc_tx) in mpsc_txes.iter() {
                 if pfx.contains(&ns_target_addr) {
-                    let node_addr = address::construct_v6addr_from_vecu8(&packet[8..24]);
+                    let node_addr =
+                        unsafe { address_translation::construct_v6addr(&packet[8..24]) };
                     let _res = mpsc_tx.send((
                         ndp::NeighborSolicitPacket::owned(packet[40..].to_vec()).unwrap(),
                         proxied_id,
