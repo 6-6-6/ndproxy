@@ -272,7 +272,7 @@ fn monitor_NS(
             _ret
         )
     });
-    let _ret = monitor.set_promiscuous(&proxied_iface);
+    let _ret = monitor.set_allmulti(&proxied_iface);
     _ret.unwrap_or_else(|_| {
         panic!(
             "Failed to enable promiscuous mode on interface {}, the process returned {:?}",

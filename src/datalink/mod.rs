@@ -9,11 +9,13 @@ use std::mem::MaybeUninit;
 
 pub trait PacketReceiverOpts {
     fn bind_to_interface(&self, iface: &interfaces::NDInterface) -> Result<(), i32>;
-    fn set_promiscuous(&self, iface: &interfaces::NDInterface) -> Result<(), i32>;
+    fn set_allmulti(&self, iface: &interfaces::NDInterface) -> Result<(), i32>;
     fn set_filter_pass_ipv6_ns(&self) -> Result<(), i32>;
 }
 
+#[derive(getset::Getters)]
 pub struct PacketReceiver {
+    #[get = "pub with_prefix"]
     socket: Socket,
     buf: Vec<MaybeUninit<u8>>,
 }
