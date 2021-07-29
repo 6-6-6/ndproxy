@@ -5,6 +5,7 @@ mod interfaces;
 mod neighbors;
 mod packets;
 mod proxy;
+mod ns_monitor;
 
 use argparse::{ArgumentParser, Store};
 
@@ -33,6 +34,6 @@ async fn main() -> Result<(), ()> {
     }));
 
     let myconf = conf::parse_config(&config_filename);
-    proxy::spawn_monitors_and_forwarders(myconf);
+    proxy::proxy_main_loop(myconf);
     Ok(())
 }
