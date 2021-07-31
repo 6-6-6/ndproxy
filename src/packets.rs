@@ -49,11 +49,11 @@ pub async fn generate_NA_forwarded<'a>(
  * and let the OS complete the Neighbor Discovery process.
  */
 #[allow(non_snake_case)]
-pub async fn generate_NS_trick<'a>(
+pub async fn generate_NS_trick<'a, 'b>(
     original_packet: &ndp::NeighborSolicitPacket<'a>,
     src_addr: &Ipv6Addr,
     dst_addr: &Ipv6Addr,
-) -> Option<Icmpv6Packet<'a>> {
+) -> Option<Icmpv6Packet<'b>> {
     let pkt_buf: Vec<u8> =
         vec![0; original_packet.packet_size() + Icmpv6Packet::minimum_packet_size()];
     let mut ret = MutableIcmpv6Packet::owned(pkt_buf).unwrap();

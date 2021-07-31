@@ -4,7 +4,7 @@ mod datalink;
 mod interfaces;
 mod neighbors;
 mod packets;
-mod proxy;
+mod nd_proxy;
 mod ns_monitor;
 mod routing;
 
@@ -35,5 +35,44 @@ async fn main() -> Result<(), ()> {
     }));
 
     let myconf = conf::parse_config(&config_filename);
+    let mut runner = Vec::new();
+    //
+    let mut pp = std::collections::HashMap::new();
+    //
+    let (iface1, iface2) = interfaces::get_ifaces_defined_by_config(&myconf[0]);
+    for conf in myconf.into_iter() {
+        let test = nd_proxy::NDProxier::new(conf).unwrap();
+        pp.insert(*test.get_proxied_prefix(), test.get_mpsc_sender().clone());
+        runner.push(test);
+    };
+
+    // select
+    use futures::future::join_all;
+    use futures::{
+        future::FutureExt, // for `.fuse()`
+        pin_mut,
+        select,
+        join
+    };
+    use futures::stream::FuturesUnordered;
+    let mut fut = Vec::new();
+    let mut fut2 = Vec::new();
+    for (u, ifs) in iface1 {
+        let test = ns_monitor::NSMonitor::new(routing::construst_route_table(pp.clone()), ifs).unwrap();
+        fut.push(test.run().boxed());
+    }
+    for i in runner.into_iter() {
+        fut2.push(i.run().boxed())
+    }
+    //pin_mut!(fut2, fut);
+    //join_all(fut).await;
+    let h1 = std::thread::spawn(move || {
+        async { println!("{:?}", join_all(fut).await) }
+    });
+    let h2 = std::thread::spawn(move || {
+        async { println!("{:?}", join_all(fut2).await) }
+    });
+    h2.join();
+    h1.join();
     Ok(())
 }
