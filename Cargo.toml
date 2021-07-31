@@ -27,7 +27,6 @@ rtnetlink = "0.8.0"
 socket2 = { version = "0.4.0", features = ["all"] }
 tokio = { version = "1.8.1", features = ["rt-multi-thread", "macros"] }
 libc = "0.2.98"
-mio = { version = "0.7.13", features = ["os-ext"] }
 treebitmap = "0.4.0"
 
 [profile.release]

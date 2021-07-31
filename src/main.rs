@@ -35,6 +35,5 @@ async fn main() -> Result<(), ()> {
     }));
 
     let myconf = conf::parse_config(&config_filename);
-    proxy::proxy_main_loop(myconf).await;
     Ok(())
 }
