@@ -4,7 +4,7 @@ use crate::routing::{SharedNSPacketReceiver, SharedNSPacketSender};
 use crate::neighbors::Neighbors;
 use crate::interfaces::{NDInterface, get_ifaces_defined_by_config};
 use ipnet::Ipv6Net;
-use log::{error, trace, warn};
+use log::{error, trace, warn, info};
 use pnet::packet::{Packet, icmpv6::ndp};
 use pnet::util::MacAddr;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -47,14 +47,14 @@ impl NDProxier {
             Err(_) => return None,
         };
         if let Err(_) = pkt_sender.set_multicast_hops_v6(255) {
-            error!(
+            warn!(
                 "NDProxier for {}: Failed to set multicast hops to 255",
                 proxied_prefix
             );
             return None;
         };
         if let Err(_) = pkt_sender.set_unicast_hops_v6(255) {
-            error!(
+            warn!(
                 "NDProxier for {}: Failed to set uniicast hops to 255",
                 proxied_prefix
             );
@@ -79,19 +79,15 @@ impl NDProxier {
     }
 
     pub fn run(mut self) {// -> Result<(), ()> {
-        println!("********* runnning");
+        // TODO: logging
         while let Ok((scope_id, macaddr, packet)) = self.mpsc_receiver.recv() {
-            println!("*********************** {:?}", scope_id);
-            let src_addr = unsafe { address_translation::construct_v6addr(&packet[8..]) };
-            let dst_addr = unsafe { address_translation::construct_v6addr(&packet[24..]) };
             // TODO: unwrap or continue?
             let ns_packet = ndp::NeighborSolicitPacket::new(&packet[40..]).unwrap();
             let tgt_addr = ns_packet.get_target_addr();
-            for i in self.cache.iter() {
-                trace!("{:?}", i);
-            };
             match self.cache.get(&tgt_addr) {
                 Some((_, true)) => {
+                    let src_addr = unsafe { address_translation::construct_v6addr(&packet[8..]) };
+                    // randomly send to multicast addr
                     if let Err(_) = self.send_na_to_upstream(src_addr, tgt_addr, &macaddr, scope_id) {
                         break;
                     }
@@ -113,7 +109,7 @@ impl NDProxier {
         src_hwaddr: &MacAddr,
         scope_id: u32,
     ) -> Result<(), ()> {
-        warn!("NDProxier for {}: Send NA to {} on interface {}",
+        info!("NDProxier for {}: Send NA to {} on interface {}",
             self.proxied_prefix,
             proxied_addr,
             scope_id

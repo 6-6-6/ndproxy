@@ -12,13 +12,6 @@ use argparse::{ArgumentParser, Store};
 
 #[tokio::main]
 async fn main() -> Result<(), ()> {
-    let mut test = ttl_cache::TtlCache::new(10);
-    test.insert(10, (0, false), std::time::Duration::from_secs(60));
-    println!("{:?}", test.get(&10));
-    let (t, _f) = test.get_mut(&10).unwrap();
-    *t += 1;
-    println!("{:?}", test.get(&10));
-    return Ok(());
     pretty_env_logger::init();
 
     let mut config_filename = String::from("./ndproxy.toml");

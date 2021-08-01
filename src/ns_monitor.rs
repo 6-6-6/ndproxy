@@ -48,13 +48,13 @@ impl NSMonitor {
 
     /// main loop: receive NS packet and forward it to related consumer
     pub fn run(mut self) {// -> Result<(), ()> {
-        let macaddr = self.iface.get_hwaddr().clone();
+        let macaddr = Arc::new(self.iface.get_hwaddr().clone());
         warn!("NSMonitor for {}: Start to work", self.iface.get_name());
         while let Some(packet) = self.inner.next() {
             if packet.len() < 64 {
                 continue;
             };
-            let shared_packet = packet;
+            let shared_packet = Arc::new(packet);
             // call construct_v6addr() instead of construct the whole pkt into NeighborSolicitionPacket
             let tgt_addr = unsafe { address_translation::construct_v6addr(&shared_packet[48..64]) };
             // logging
@@ -68,10 +68,17 @@ impl NSMonitor {
                     tgt_addr,
                 );
             }
-            println!("################ {:?}", self.routing_table.longest_match(tgt_addr));
+            // logging again
+            trace!("NSMonitor for {}: get route for 🔍{}🔍 - {:?}",
+                self.iface.get_name(),
+                tgt_addr,
+                self.routing_table.longest_match(tgt_addr));
             if let Some((_pfx, _pfx_len, sender)) = self.routing_table.longest_match(tgt_addr) {
                 if let Err(e) = sender.send((*self.iface.get_scope_id(), macaddr.clone() ,shared_packet)) {
-                    error!("NSMonitor for {}: _{:?}_ Failed to send the packet searching for {} to its corresponding proxier.", self.iface.get_name(), e, tgt_addr);
+                    error!("NSMonitor for {}: _{:?}_ Failed to send the packet searching for {} to its corresponding proxier.",
+                        self.iface.get_name(),
+                        e,
+                        tgt_addr);
                     break;
                 };
             }
