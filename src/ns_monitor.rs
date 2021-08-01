@@ -47,7 +47,7 @@ impl NSMonitor {
     }
 
     /// main loop: receive NS packet and forward it to related consumer
-    pub async fn run(mut self) {// -> Result<(), ()> {
+    pub fn run(mut self) {// -> Result<(), ()> {
         let macaddr = self.iface.get_hwaddr().clone();
         warn!("NSMonitor for {}: Start to work", self.iface.get_name());
         while let Some(packet) = self.inner.next() {

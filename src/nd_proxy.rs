@@ -78,7 +78,7 @@ impl NDProxier {
         })
     }
 
-    pub async fn run(mut self) {// -> Result<(), ()> {
+    pub fn run(mut self) {// -> Result<(), ()> {
         println!("********* runnning");
         while let Ok((scope_id, macaddr, packet)) = self.mpsc_receiver.recv() {
             println!("*********************** {:?}", scope_id);
@@ -87,7 +87,9 @@ impl NDProxier {
             // TODO: unwrap or continue?
             let ns_packet = ndp::NeighborSolicitPacket::new(&packet[40..]).unwrap();
             let tgt_addr = ns_packet.get_target_addr();
-            warn!("{:?}", self.cache.get(&tgt_addr));
+            for i in self.cache.iter() {
+                trace!("{:?}", i);
+            };
             match self.cache.get(&tgt_addr) {
                 Some((_, true)) => {
                     if let Err(_) = self.send_na_to_upstream(src_addr, tgt_addr, &macaddr, scope_id) {
@@ -141,14 +143,18 @@ impl NDProxier {
             _ => proxied_addr,
         };
         match self.neighbors.check_whehter_entry_exists_sync(&rewrited_addr) {
-            Some(_) => self.cache.insert(proxied_addr, (0, true), Duration::from_secs(30)),
+            Some(_) => { self.cache.insert(proxied_addr, (0, true), Duration::from_secs(30)); },
             // TODO: update cache
-            None => return Err(()),
+            None => { match self.cache.get_mut(&proxied_addr) {
+                Some((cnt, false)) => *cnt += 1,
+                _ => { self.cache.insert(proxied_addr, (0, false), Duration::from_secs(5)); },
+            }},
         };
         let ns_trick = match block_on(packets::generate_NS_trick(&original_packet, &Ipv6Addr::UNSPECIFIED, &rewrited_addr)) {
             Some(v) => v,
             None => return Err(())
         };
+        // TODO: logging
         for (id, _iface) in self.downstream_ifs.iter() {
             match self.pkt_sender.send_to(ns_trick.packet(), &SocketAddrV6::new(rewrited_addr, 0, 0, *id).into()) {
                 Ok(_) => return Ok(()),

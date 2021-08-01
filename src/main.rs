@@ -12,6 +12,13 @@ use argparse::{ArgumentParser, Store};
 
 #[tokio::main]
 async fn main() -> Result<(), ()> {
+    let mut test = ttl_cache::TtlCache::new(10);
+    test.insert(10, (0, false), std::time::Duration::from_secs(60));
+    println!("{:?}", test.get(&10));
+    let (t, _f) = test.get_mut(&10).unwrap();
+    *t += 1;
+    println!("{:?}", test.get(&10));
+    return Ok(());
     pretty_env_logger::init();
 
     let mut config_filename = String::from("./ndproxy.toml");
@@ -55,24 +62,19 @@ async fn main() -> Result<(), ()> {
         join
     };
     use futures::stream::FuturesUnordered;
+    use futures::executor::block_on;
+    use tokio::task::spawn_blocking;
+    use std::thread::spawn;
     let mut fut = Vec::new();
-    let mut fut2 = Vec::new();
     for (u, ifs) in iface1 {
         let test = ns_monitor::NSMonitor::new(routing::construst_route_table(pp.clone()), ifs).unwrap();
-        fut.push(test.run().boxed());
+        fut.push(spawn(move || { test.run() } ));
     }
     for i in runner.into_iter() {
-        fut2.push(i.run().boxed())
+        fut.push(spawn(move || { i.run() } ));
     }
     //pin_mut!(fut2, fut);
     //join_all(fut).await;
-    let h1 = std::thread::spawn(move || {
-        async { println!("{:?}", join_all(fut).await) }
-    });
-    let h2 = std::thread::spawn(move || {
-        async { println!("{:?}", join_all(fut2).await) }
-    });
-    h2.join();
-    h1.join();
+    fut.pop().unwrap().join();
     Ok(())
 }
