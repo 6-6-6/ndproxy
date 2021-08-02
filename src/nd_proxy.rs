@@ -4,7 +4,7 @@ use crate::routing::{SharedNSPacketReceiver, SharedNSPacketSender};
 use crate::neighbors::Neighbors;
 use crate::interfaces::{NDInterface, get_ifaces_defined_by_config};
 use ipnet::Ipv6Net;
-use log::{warn, info};
+use log::{warn, info, trace};
 use pnet::packet::{Packet, icmpv6::ndp};
 use pnet::util::MacAddr;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -94,7 +94,7 @@ impl NDProxier {
                 // TODO: magic number
                 Some((cnt, false)) if *cnt > 5 => continue,
                 _ => {
-                    let _res = self.forward_ns_to_downstream(tgt_addr, scope_id, ns_packet);
+                    let _res = self.forward_ns_to_downstream(tgt_addr, scope_id, ns_packet).await;
                 }
             }
         }
@@ -132,7 +132,7 @@ impl NDProxier {
         }
     }
 
-    fn forward_ns_to_downstream<'a>(&mut self, proxied_addr: Ipv6Addr, origin_scope_id: u32, original_packet: ndp::NeighborSolicitPacket<'a>) -> Result<(), ()> {
+    async fn forward_ns_to_downstream<'a>(&mut self, proxied_addr: Ipv6Addr, origin_scope_id: u32, original_packet: ndp::NeighborSolicitPacket<'a>) -> Result<(), ()> {
         let rewrited_addr = match self.address_mangling {
             ADDRESS_NETMAP => address_translation::netmapv6(proxied_addr, &self.rewrite_prefix),
             ADDRESS_NPT => address_translation::nptv6(self.proxied_prefix_csum, self.rewrite_prefix_csum, proxied_addr, &self.rewrite_prefix),
@@ -144,18 +144,22 @@ impl NDProxier {
             None => return Err(())
         };
         // TODO: logging
+        trace!("NDProxier for {}: Send packet to {}.",
+            self.proxied_prefix,
+            rewrited_addr,
+        );
         for (id, _iface) in self.downstream_ifs.iter() {
-            match self.pkt_sender.send_to(ns_trick.packet(), &SocketAddrV6::new(rewrited_addr, 0, 0, *id).into()) {
-                Ok(_) => return Ok(()),
-                Err(_) => return Err(())
+            if let Err(_) = self.pkt_sender.send_to(ns_trick.packet(), &SocketAddrV6::new(rewrited_addr, 0, 0, *id).into()) {
+                return Err(())
             }
         }
         // update cache
-        match self.neighbors.check_whehter_entry_exists_sync(&rewrited_addr) {
+        match self.neighbors.check_whehter_entry_exists(&rewrited_addr).await {
             Some(_) => {
                 self.cache.insert(proxied_addr, (0, true), Duration::from_secs(120));
             },
-            None => { match self.cache.get_mut(&proxied_addr) {
+            None => {
+                match self.cache.get_mut(&proxied_addr) {
                 Some((cnt, false)) => *cnt += 1,
                 _ => { self.cache.insert(proxied_addr, (0, false), Duration::from_secs(10)); },
             }},

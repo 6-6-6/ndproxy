@@ -65,7 +65,7 @@ async fn main() -> Result<(), ()> {
         fut.push(spawn(move || { test.run() } ));
     }
     for i in runner.into_iter() {
-        fut2.push(i.run());
+        fut2.push(i.run().boxed());
     }
     //pin_mut!(fut2, fut);
     join_all(fut2).await;
