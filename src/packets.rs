@@ -5,7 +5,7 @@ use std::net::Ipv6Addr;
 
 // generate Neighbor Advertisement packet
 #[allow(non_snake_case)]
-pub async fn generate_NA_forwarded<'a>(
+pub fn generate_NA_forwarded<'a>(
     src_addr: &Ipv6Addr,
     dst_addr: &Ipv6Addr,
     proxied_addr: &Ipv6Addr,
@@ -49,7 +49,7 @@ pub async fn generate_NA_forwarded<'a>(
  * and let the OS complete the Neighbor Discovery process.
  */
 #[allow(non_snake_case)]
-pub async fn generate_NS_trick<'a, 'b>(
+pub fn generate_NS_trick<'a, 'b>(
     original_packet: &ndp::NeighborSolicitPacket<'a>,
     src_addr: &Ipv6Addr,
     dst_addr: &Ipv6Addr,
@@ -75,4 +75,4 @@ pub async fn generate_NS_trick<'a, 'b>(
     Some(ret.consume_to_immutable())
 }
 
-//TODO: tests
+//TODO: testss

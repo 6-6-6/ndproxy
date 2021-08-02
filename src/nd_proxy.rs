@@ -4,7 +4,7 @@ use crate::routing::{SharedNSPacketReceiver, SharedNSPacketSender};
 use crate::neighbors::Neighbors;
 use crate::interfaces::{NDInterface, get_ifaces_defined_by_config};
 use ipnet::Ipv6Net;
-use log::{error, trace, warn, info};
+use log::{warn, info};
 use pnet::packet::{Packet, icmpv6::ndp};
 use pnet::util::MacAddr;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -33,7 +33,6 @@ pub struct NDProxier {
     downstream_ifs: HashMap<u32, NDInterface>,
 }
 
-use futures::executor::block_on;
 impl NDProxier {
     pub fn new(config: NDConfig) -> Option<Self> {
         let proxied_prefix = config.get_proxied_pfx().clone();
@@ -87,7 +86,7 @@ impl NDProxier {
             match self.cache.get(&tgt_addr) {
                 Some((_, true)) => {
                     let src_addr = unsafe { address_translation::construct_v6addr(&packet[8..]) };
-                    // randomly send to multicast addr
+                    // TODO: randomly send to multicast addr
                     if let Err(_) = self.send_na_to_upstream(src_addr, tgt_addr, &macaddr, scope_id) {
                         break;
                     }
@@ -109,19 +108,20 @@ impl NDProxier {
         src_hwaddr: &MacAddr,
         scope_id: u32,
     ) -> Result<(), ()> {
-        info!("NDProxier for {}: Send NA to {} on interface {}",
+        info!("NDProxier for {}: Send NA for {} to {} on interface {}",
             self.proxied_prefix,
             proxied_addr,
+            ns_origin,
             scope_id
         );
         // randomly send to multicast
-        let na_pkt = match block_on(packets::generate_NA_forwarded(
+        let na_pkt = match packets::generate_NA_forwarded(
             &Ipv6Addr::UNSPECIFIED,
             &ns_origin,
             &proxied_addr,
             src_hwaddr,
             self.na_flag,
-        ))
+        )
         {
             Some(v) => v,
             None => return Err(()),
@@ -138,15 +138,8 @@ impl NDProxier {
             ADDRESS_NPT => address_translation::nptv6(self.proxied_prefix_csum, self.rewrite_prefix_csum, proxied_addr, &self.rewrite_prefix),
             _ => proxied_addr,
         };
-        match self.neighbors.check_whehter_entry_exists_sync(&rewrited_addr) {
-            Some(_) => { self.cache.insert(proxied_addr, (0, true), Duration::from_secs(30)); },
-            // TODO: update cache
-            None => { match self.cache.get_mut(&proxied_addr) {
-                Some((cnt, false)) => *cnt += 1,
-                _ => { self.cache.insert(proxied_addr, (0, false), Duration::from_secs(5)); },
-            }},
-        };
-        let ns_trick = match block_on(packets::generate_NS_trick(&original_packet, &Ipv6Addr::UNSPECIFIED, &rewrited_addr)) {
+        //
+        let ns_trick = match packets::generate_NS_trick(&original_packet, &Ipv6Addr::UNSPECIFIED, &rewrited_addr) {
             Some(v) => v,
             None => return Err(())
         };
@@ -157,6 +150,16 @@ impl NDProxier {
                 Err(_) => return Err(())
             }
         }
+        // update cache
+        match self.neighbors.check_whehter_entry_exists_sync(&rewrited_addr) {
+            Some(_) => {
+                self.cache.insert(proxied_addr, (0, true), Duration::from_secs(120));
+            },
+            None => { match self.cache.get_mut(&proxied_addr) {
+                Some((cnt, false)) => *cnt += 1,
+                _ => { self.cache.insert(proxied_addr, (0, false), Duration::from_secs(10)); },
+            }},
+        };
         Ok(())
     }
 }
