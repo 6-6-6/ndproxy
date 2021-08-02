@@ -59,15 +59,16 @@ async fn main() -> Result<(), ()> {
     use tokio::task::spawn_blocking;
     use std::thread::spawn;
     let mut fut = Vec::new();
+    let mut fut2 = Vec::new();
     for (u, ifs) in iface1 {
         let test = ns_monitor::NSMonitor::new(routing::construst_route_table(pp.clone()), ifs).unwrap();
         fut.push(spawn(move || { test.run() } ));
     }
     for i in runner.into_iter() {
-        fut.push(spawn(move || { i.run() } ));
+        fut2.push(i.run());
     }
     //pin_mut!(fut2, fut);
-    //join_all(fut).await;
+    join_all(fut2).await;
     fut.pop().unwrap().join();
     Ok(())
 }

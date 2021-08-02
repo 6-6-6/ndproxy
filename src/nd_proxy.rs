@@ -9,7 +9,7 @@ use pnet::packet::{Packet, icmpv6::ndp};
 use pnet::util::MacAddr;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::net::{Ipv6Addr, SocketAddrV6};
-use std::sync::mpsc;
+use tokio::sync::mpsc;
 use ttl_cache::TtlCache;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -38,7 +38,7 @@ impl NDProxier {
         let proxied_prefix = config.get_proxied_pfx().clone();
         let address_mangling = config.get_address_mangling().clone();
         let rewrite_prefix = config.get_dst_pfx().clone();
-        let (mpsc_sender, mpsc_receiver) = mpsc::channel();
+        let (mpsc_sender, mpsc_receiver) = mpsc::unbounded_channel();
         let (upstream_ifs, downstream_ifs) = get_ifaces_defined_by_config(&config);
         // TODO: maybe a Lock<Arc<Socket>> would be better?
         let pkt_sender = match Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::ICMPV6)) {
@@ -77,9 +77,9 @@ impl NDProxier {
         })
     }
 
-    pub fn run(mut self) {// -> Result<(), ()> {
+    pub async fn run(mut self) {// -> Result<(), ()> {
         // TODO: logging
-        while let Ok((scope_id, macaddr, packet)) = self.mpsc_receiver.recv() {
+        while let Some((scope_id, macaddr, packet)) = self.mpsc_receiver.recv().await {
             // TODO: unwrap or continue?
             let ns_packet = ndp::NeighborSolicitPacket::new(&packet[40..]).unwrap();
             let tgt_addr = ns_packet.get_target_addr();
