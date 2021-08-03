@@ -49,26 +49,24 @@ async fn main() -> Result<(), ()> {
     // select
     use futures::future::join_all;
     use futures::{
-        future::FutureExt, // for `.fuse()`
+        future::FutureExt, // for `.boxed()`
         pin_mut,
         select,
         join
     };
-    use futures::stream::FuturesUnordered;
-    use futures::executor::block_on;
     use tokio::task::spawn_blocking;
     use std::thread::spawn;
     let mut fut = Vec::new();
     let mut fut2 = Vec::new();
     for (u, ifs) in iface1 {
         let test = ns_monitor::NSMonitor::new(routing::construst_route_table(pp.clone()), ifs).unwrap();
-        fut.push(spawn(move || { test.run() } ));
+        fut.push(spawn_blocking(move || { test.run() } ).boxed());
     }
     for i in runner.into_iter() {
         fut2.push(i.run().boxed());
     }
     //pin_mut!(fut2, fut);
-    join_all(fut2).await;
-    fut.pop().unwrap().join();
+    join!(join_all(fut), join_all(fut2));
+    //fut.pop().unwrap().join();
     Ok(())
 }

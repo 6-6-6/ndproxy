@@ -21,21 +21,20 @@ impl NeighborStates {
 
 pub struct Neighbors {
     // communicate with netlink
-    handle: rtnetlink::Handle,
+    handle: rtnetlink::NeighbourHandle,
 }
 
 impl Neighbors {
     pub fn new() -> Self {
         let (connection, handle, _) = new_connection().unwrap();
         tokio::spawn(connection);
-        Neighbors { handle }
+        Neighbors { handle: handle.neighbours() }
     }
 
     // check whether we have the related neighbor entry
     pub async fn check_whehter_entry_exists(&self, my_entry: &Ipv6Addr) -> Option<(MacAddr, u32)> {
         let mut neighbors = self
             .handle
-            .neighbours()
             .get()
             .set_family(IpVersion::V6)
             .execute();
