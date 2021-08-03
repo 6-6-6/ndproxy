@@ -35,15 +35,15 @@ async fn main() -> Result<(), ()> {
     }));
 
     let myconf = conf::parse_config(&config_filename);
-    let mut runner = Vec::new();
+    let mut fut2 = Vec::new();
     //
     let mut pp = std::collections::HashMap::new();
     //
     let (iface1, iface2) = interfaces::get_ifaces_defined_by_config(&myconf[0]);
     for conf in myconf.into_iter() {
-        let test = nd_proxy::NDProxier::new(conf).unwrap();
-        pp.insert(*test.get_proxied_prefix(), test.get_mpsc_sender().clone());
-        runner.push(test);
+        let mut test = nd_proxy::NDProxier::new(conf).unwrap();
+        pp.insert(*test.get_proxied_prefix(), test.mpsc_sender_mut().take().unwrap());
+        fut2.push(test.run());
     };
 
     // select
@@ -55,18 +55,12 @@ async fn main() -> Result<(), ()> {
         join
     };
     use tokio::task::spawn_blocking;
-    use std::thread::spawn;
     let mut fut = Vec::new();
-    let mut fut2 = Vec::new();
     for (u, ifs) in iface1 {
         let test = ns_monitor::NSMonitor::new(routing::construst_route_table(pp.clone()), ifs).unwrap();
         fut.push(spawn_blocking(move || { test.run() } ).boxed());
     }
-    for i in runner.into_iter() {
-        fut2.push(i.run().boxed());
-    }
-    //pin_mut!(fut2, fut);
+    drop(pp);
     join!(join_all(fut), join_all(fut2));
-    //fut.pop().unwrap().join();
     Ok(())
 }

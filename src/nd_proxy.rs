@@ -14,7 +14,7 @@ use ttl_cache::TtlCache;
 use std::collections::HashMap;
 use std::time::Duration;
 
-#[derive(getset::Getters)]
+#[derive(getset::Getters, getset::MutGetters)]
 pub struct NDProxier {
     cache: TtlCache<Ipv6Addr, (u8, bool)>,
     #[get = "pub with_prefix"]
@@ -24,8 +24,8 @@ pub struct NDProxier {
     rewrite_prefix: Ipv6Net,
     rewrite_prefix_csum: u16,
     mpsc_receiver: SharedNSPacketReceiver,
-    #[get = "pub with_prefix"]
-    mpsc_sender: SharedNSPacketSender,
+    #[get_mut = "pub with_prefix"]
+    mpsc_sender: Option<SharedNSPacketSender>,
     pkt_sender: Socket,
     na_flag: u8,
     neighbors: Neighbors,
@@ -68,7 +68,7 @@ impl NDProxier {
             rewrite_prefix,
             rewrite_prefix_csum: address_translation::pfx_csum(&rewrite_prefix),
             mpsc_receiver,
-            mpsc_sender,
+            mpsc_sender: Some(mpsc_sender),
             pkt_sender,
             na_flag: 0,
             neighbors: Neighbors::new(),
@@ -78,23 +78,29 @@ impl NDProxier {
     }
 
     pub async fn run(mut self) {// -> Result<(), ()> {
+        drop(self.mpsc_sender.take());
         // TODO: logging
-        while let Some((scope_id, macaddr, packet)) = self.mpsc_receiver.recv().await {
+        while let Some((scope_id, tgt_addr, packet)) = self.mpsc_receiver.recv().await {
             // TODO: unwrap or continue?
             let ns_packet = ndp::NeighborSolicitPacket::new(&packet[40..]).unwrap();
-            let tgt_addr = ns_packet.get_target_addr();
+            // I will not process the pkt,
+            // if the scope id does not show up in upstream_ifs
+            let macaddr = match self.upstream_ifs.get(&scope_id) {
+                Some(iface) => iface.get_hwaddr(),
+                None => continue,
+            };
             match self.cache.get(&tgt_addr) {
                 Some((_, true)) => {
                     let src_addr = unsafe { address_translation::construct_v6addr(&packet[8..]) };
                     // TODO: randomly send to multicast addr
-                    if let Err(_) = self.send_na_to_upstream(src_addr, tgt_addr, &macaddr, scope_id) {
+                    if let Err(_) = self.send_na_to_upstream(src_addr, *tgt_addr, macaddr, scope_id) {
                         break;
                     }
                 }
                 // TODO: magic number
                 Some((cnt, false)) if *cnt > 5 => continue,
                 _ => {
-                    let _res = self.forward_ns_to_downstream(tgt_addr, scope_id, ns_packet).await;
+                    let _res = self.forward_ns_to_downstream(*tgt_addr, scope_id, ns_packet).await;
                 }
             }
         }
@@ -148,7 +154,7 @@ impl NDProxier {
             self.proxied_prefix,
             rewrited_addr,
         );
-        for (id, _iface) in self.downstream_ifs.iter() {
+        for id in self.downstream_ifs.keys() {
             if let Err(_) = self.pkt_sender.send_to(ns_trick.packet(), &SocketAddrV6::new(rewrited_addr, 0, 0, *id).into()) {
                 return Err(())
             }

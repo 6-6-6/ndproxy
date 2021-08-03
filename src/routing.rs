@@ -6,7 +6,7 @@ use ipnet::Ipv6Net;
 use std::collections::HashMap;
 use pnet::util::MacAddr;
 
-pub type SharedNSPacket = (u32, Arc<MacAddr>, Arc<Vec<u8>>);
+pub type SharedNSPacket = (u32, Arc<Ipv6Addr>, Arc<Vec<u8>>);
 pub type SharedNSPacketSender = mpsc::UnboundedSender<SharedNSPacket>;
 pub type SharedNSPacketReceiver = mpsc::UnboundedReceiver<SharedNSPacket>;
 
