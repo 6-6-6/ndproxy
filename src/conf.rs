@@ -159,18 +159,17 @@ impl NDConfig {
     }
 }
 
-/*
- * parse the toml configuration file, returns a vector of NDConfig
- *
- * Note that there MUST be a master section called "ndp"
- */
+/// parse the toml configuration file, returns a vector of NDConfig
+///
+/// Note that there MUST be a master section called "ndp"
 pub fn parse_config(cfile: &str) -> Vec<NDConfig> {
     let mut ret = Vec::new();
     let mut myconfig = config::Config::new();
 
     myconfig.merge(config::File::with_name(cfile)).unwrap();
 
-    // magic word: ndp
+    // TODO: magic word: ndp
+    // is it necessary?
     for (key, value) in myconfig.get_table("ndp").unwrap().iter() {
         ret.push(NDConfig::new(key, value.clone().into_table().unwrap()));
     }

@@ -3,7 +3,7 @@ use pnet::packet::{Packet, PacketSize};
 use pnet::util::MacAddr;
 use std::net::Ipv6Addr;
 
-// generate Neighbor Advertisement packet
+/// generate a Neighbor Advertisement packet, necessary information should be provided
 #[allow(non_snake_case)]
 pub fn generate_NA_forwarded<'a>(
     src_addr: &Ipv6Addr,
@@ -44,10 +44,9 @@ pub fn generate_NA_forwarded<'a>(
     Some(ret.consume_to_immutable())
 }
 
-/* Instead of taking over the process of Neighbor Discovery myself,
- * I decided to form an Icmpv6 Echo Request packet,
- * and let the OS complete the Neighbor Discovery process.
- */
+/// Instead of taking over the process of Neighbor Discovery myself,
+/// I decided to form an Icmpv6 Echo Request packet,
+/// and let the OS complete the Neighbor Discovery process.
 #[allow(non_snake_case)]
 pub fn generate_NS_trick<'a, 'b>(
     original_packet: &ndp::NeighborSolicitPacket<'a>,
@@ -78,4 +77,4 @@ pub fn generate_NS_trick<'a, 'b>(
     Some(ret.consume_to_immutable())
 }
 
-//TODO: testss
+//TODO: tests

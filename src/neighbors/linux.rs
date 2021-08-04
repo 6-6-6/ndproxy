@@ -6,6 +6,7 @@ use std::net::Ipv6Addr;
 use std::time::Duration;
 use ttl_cache::TtlCache;
 
+/// the status of a neighbour entry
 struct NeighborStates;
 #[allow(dead_code)]
 impl NeighborStates {
@@ -20,9 +21,12 @@ impl NeighborStates {
     pub const NUD_NONE: u16 = 0x00;
 }
 
+/// wrapper for rtnetlink::NeighbourGetRequest
 pub struct Neighbors {
-    // communicate with netlink
+    /// communicate with netlink
     handle: rtnetlink::NeighbourHandle,
+    /// cache results of `ip -6 neigh`
+    /// to reduce the frequency of communication with kernel
     cache: TtlCache<Ipv6Addr, (Vec<u8>, u32)>,
 }
 
@@ -39,6 +43,7 @@ impl Neighbors {
         }
     }
 
+    /// `ip -6 neigh`
     async fn update_cache(&mut self) {
         // return if cache is not expired
         if self.cache.get(&Ipv6Addr::UNSPECIFIED).is_some() {
@@ -79,7 +84,7 @@ impl Neighbors {
         }
     }
 
-    // check whether we have the related neighbor entry
+    /// check whether the input address is a valid neighbor
     pub async fn check_whehter_entry_exists(
         &mut self,
         my_entry: &Ipv6Addr,

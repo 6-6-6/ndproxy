@@ -18,7 +18,7 @@ pub struct NDInterface {
     from_pnet: datalink::NetworkInterface,
 }
 
-// convert datalink::NetworkInterface to NDInterface
+/// convert datalink::NetworkInterface to NDInterface
 fn get_specified_iface(raw: datalink::NetworkInterface) -> Option<NDInterface> {
     for addr in raw.ips.iter() {
         if let IpAddr::V6(ip) = addr.ip() {
@@ -51,7 +51,7 @@ fn get_specified_iface(raw: datalink::NetworkInterface) -> Option<NDInterface> {
     None
 }
 
-// given a list of names of interfaces, return a list of NDInterfaces
+/// given a list of names of interfaces, return a list of NDInterfaces
 pub fn get_ifaces_with_name(names: &[String]) -> HashMap<u32, NDInterface> {
     let mut ret = HashMap::new();
 
@@ -74,7 +74,7 @@ pub fn get_ifaces_with_name(names: &[String]) -> HashMap<u32, NDInterface> {
     ret
 }
 
-// return the proxied interface and the forwarded interface
+/// return the proxied interface and the forwarded interface
 pub fn get_ifaces_defined_by_config(
     ndconf: &conf::NDConfig,
 ) -> (HashMap<u32, NDInterface>, HashMap<u32, NDInterface>) {

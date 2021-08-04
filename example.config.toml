@@ -1,13 +1,27 @@
 [ndp]
+# entry for a single prefix, you can define another subsection for another prefix
 [ndp.conf1]
+# proxy type
+# one of: "forward" | "static"
 type = "forward"
+
+# Neighbor Solicitations of the specified prefix will be processed by ndproxy
 proxied_prefix = "2001:db8:a:2::/64"
-# upstream
+
+# upstream ifaces, could be a string or a list of strings
+# special string:
+#     "*" means all the interfaces
 proxied_ifaces = [ "eth0" ]
-# downstream
+
+# downstream ifaces, could be a string or a list of strings
+# special string:
+#     "*" means all the interfaces
+#     TODO: "auto" means the destination interface is determined by the host
 forwarded_ifaces = "eth1"
+
 # enable it if your local network has a different prefix
 # one of: "netmap" | "npt"
 #rewrite_method = "netmap"
+
 # prefix of your local network
 #local_prefix"2001:dead:beef::/64"
