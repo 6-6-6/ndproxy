@@ -1,4 +1,3 @@
-use futures::executor::block_on;
 use futures::stream::TryStreamExt;
 use netlink_packet_route::rtnl::neighbour::nlas::Nla;
 use pnet::util::MacAddr;
@@ -28,7 +27,7 @@ pub struct Neighbors {
 }
 
 impl Neighbors {
-    pub const CACHE_LIFETIME: Duration = Duration::from_millis(100);
+    pub const CACHE_LIFETIME: Duration = Duration::from_millis(150);
 
     pub fn new() -> Self {
         let (connection, handle, _) = new_connection().unwrap();

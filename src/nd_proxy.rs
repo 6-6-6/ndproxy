@@ -1,4 +1,4 @@
-use crate::conf::{NDConfig, ADDRESS_NETMAP, ADDRESS_NPT};
+use crate::conf::{NDConfig, ADDRESS_NETMAP, ADDRESS_NPT, PROXY_STATIC};
 use crate::packets;
 use crate::routing::{SharedNSPacketReceiver, SharedNSPacketSender};
 use crate::neighbors::Neighbors;
@@ -17,6 +17,7 @@ use std::time::Duration;
 #[derive(getset::Getters, getset::MutGetters)]
 pub struct NDProxier {
     cache: TtlCache<Ipv6Addr, (u8, bool)>,
+    proxy_type: u8,
     #[get = "pub with_prefix"]
     proxied_prefix: Ipv6Net,
     proxied_prefix_csum: u16,
@@ -36,7 +37,8 @@ pub struct NDProxier {
 impl NDProxier {
     pub fn new(config: NDConfig) -> Option<Self> {
         let proxied_prefix = config.get_proxied_pfx().clone();
-        let address_mangling = config.get_address_mangling().clone();
+        let proxy_type = *config.get_proxy_type();
+        let address_mangling = *config.get_address_mangling();
         let rewrite_prefix = config.get_dst_pfx().clone();
         let (mpsc_sender, mpsc_receiver) = mpsc::unbounded_channel();
         let (upstream_ifs, downstream_ifs) = get_ifaces_defined_by_config(&config);
@@ -62,6 +64,7 @@ impl NDProxier {
         Some(Self {
             // cache size?
             cache: TtlCache::new(256),
+            proxy_type,
             proxied_prefix,
             proxied_prefix_csum: address_translation::pfx_csum(&proxied_prefix),
             address_mangling,
@@ -77,9 +80,31 @@ impl NDProxier {
         })
     }
 
-    pub async fn run(mut self) {// -> Result<(), ()> {
+    pub async fn run(mut self) {
         drop(self.mpsc_sender.take());
         // TODO: logging
+        match self.proxy_type {
+            PROXY_STATIC => self.run_static().await,
+            _ => self.run_forward().await,
+        }
+    }
+
+    pub async fn run_static(mut self) {
+        while let Some((scope_id, tgt_addr, packet)) = self.mpsc_receiver.recv().await {
+            let macaddr = match self.upstream_ifs.get(&scope_id) {
+                Some(iface) => iface.get_hwaddr(),
+                None => continue,
+            };
+            let src_addr = unsafe { address_translation::construct_v6addr(&packet[8..]) };
+            // TODO: randomly send to multicast addr
+            if let Err(_) = self.send_na_to_upstream(src_addr, *tgt_addr, macaddr, scope_id) {
+                break;
+            }
+        }
+
+    }
+
+    pub async fn run_forward(mut self) {// -> Result<(), ()> {
         while let Some((scope_id, tgt_addr, packet)) = self.mpsc_receiver.recv().await {
             // TODO: unwrap or continue?
             let ns_packet = ndp::NeighborSolicitPacket::new(&packet[40..]).unwrap();
