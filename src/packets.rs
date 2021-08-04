@@ -56,7 +56,10 @@ pub fn generate_NS_trick<'a, 'b>(
 ) -> Option<Icmpv6Packet<'b>> {
     let pkt_buf: Vec<u8> =
         vec![0; original_packet.packet_size() + Icmpv6Packet::minimum_packet_size()];
-    let mut ret = MutableIcmpv6Packet::owned(pkt_buf).unwrap();
+    let mut ret = match MutableIcmpv6Packet::owned(pkt_buf) {
+        Some(v) => v,
+        None => return None,
+    };
     // update the option field if needed
     // convert it into a icmp echo request
     ret.set_icmpv6_type(Icmpv6Types::EchoRequest);
