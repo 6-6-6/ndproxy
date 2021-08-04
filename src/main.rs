@@ -2,10 +2,10 @@ mod address;
 mod conf;
 mod datalink;
 mod interfaces;
-mod neighbors;
-mod packets;
 mod nd_proxy;
+mod neighbors;
 mod ns_monitor;
+mod packets;
 mod routing;
 
 use argparse::{ArgumentParser, Store};
@@ -46,14 +46,19 @@ async fn main() -> Result<(), ()> {
     let (iface1, _iface2) = interfaces::get_ifaces_defined_by_config(&myconf[0]);
     for conf in myconf.into_iter() {
         let mut proxifier = nd_proxy::NDProxier::new(conf).unwrap();
-        route_map.insert(*proxifier.get_proxied_prefix(), proxifier.mpsc_sender_mut().take().unwrap());
+        route_map.insert(
+            *proxifier.get_proxied_prefix(),
+            proxifier.mpsc_sender_mut().take().unwrap(),
+        );
         ndproxiers.push(proxifier.run());
-    };
+    }
     //
     let nsmonitors = FuturesUnordered::new();
     for (_u, ifs) in iface1 {
-        let nsm = ns_monitor::NSMonitor::new(routing::construst_route_table(route_map.clone()), ifs).unwrap();
-        nsmonitors.push(spawn_blocking(move || { nsm.run() } ));
+        let nsm =
+            ns_monitor::NSMonitor::new(routing::construst_route_table(route_map.clone()), ifs)
+                .unwrap();
+        nsmonitors.push(spawn_blocking(move || nsm.run()));
     }
     // because route_map contains mpsc::Sender, I will drop it to make these Senders unavailable
     drop(route_map);
