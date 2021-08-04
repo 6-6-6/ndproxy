@@ -40,7 +40,7 @@ impl Neighbors {
 
     async fn update_cache(&mut self) {
         // return if cache is not expired
-        if let Some(_) = self.cache.get(&Ipv6Addr::UNSPECIFIED) {
+        if self.cache.get(&Ipv6Addr::UNSPECIFIED).is_some() {
             return;
         };
         //
@@ -86,8 +86,8 @@ impl Neighbors {
         //
         self.update_cache().await;
         //
-        match self.cache.get(my_entry) {
-            Some((hwaddr_vec, ifidx)) => Some((
+        self.cache.get(my_entry).map(|(hwaddr_vec, ifidx)| {
+            (
                 MacAddr(
                     hwaddr_vec[0],
                     hwaddr_vec[1],
@@ -97,8 +97,7 @@ impl Neighbors {
                     hwaddr_vec[5],
                 ),
                 *ifidx,
-            )),
-            None => None,
-        }
+            )
+        })
     }
 }
