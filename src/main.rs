@@ -1,4 +1,3 @@
-mod address;
 mod conf;
 mod datalink;
 mod interfaces;
