@@ -1,7 +1,7 @@
 use crate::datalink::{PacketReceiver, PacketReceiverOpts};
 use crate::interfaces::NDInterface;
 use crate::routing::SharedNSPacketSender;
-use log::{error, warn, trace};
+use log::{error, trace, warn};
 use std::net::Ipv6Addr;
 use std::sync::Arc;
 use treebitmap::IpLookupTable;
@@ -24,17 +24,22 @@ impl NSMonitor {
         iface: NDInterface,
     ) -> Option<Self> {
         let inner = PacketReceiver::new();
-        if let Err(_) = inner.bind_to_interface(&iface) {
-            error!("Failed to bind to interface {}", iface.get_name());
+        if let Err(e) = inner.bind_to_interface(&iface) {
+            error!("[{:?}] Failed to bind to interface {}", e, iface.get_name());
             return None;
         };
-        if let Err(_) = inner.set_allmulti(&iface) {
-            error!("Failed to set ALLMULTI on interface {}", iface.get_name());
-            return None;
-        };
-        if let Err(_) = inner.set_filter_pass_ipv6_ns() {
+        if let Err(e) = inner.set_allmulti(&iface) {
             error!(
-                "Failed to attach BPF filter to interface {}",
+                "[{:?}] Failed to set ALLMULTI on interface {}",
+                e,
+                iface.get_name()
+            );
+            return None;
+        };
+        if let Err(e) = inner.set_filter_pass_ipv6_ns() {
+            error!(
+                "[{:?}] Failed to attach BPF filter to interface {}",
+                e,
                 iface.get_name()
             );
             return None;
@@ -47,7 +52,7 @@ impl NSMonitor {
     }
 
     /// main loop: receive NS packet and forward it to related consumer
-    pub fn run(mut self) {// -> Result<(), ()> {
+    pub fn run(mut self) -> Result<(), ()> {
         warn!("NSMonitor for {}: Start to work", self.iface.get_name());
         while let Some(packet) = self.inner.next() {
             if packet.len() < 64 {
@@ -55,10 +60,15 @@ impl NSMonitor {
             };
             let shared_packet = Arc::new(packet);
             // call construct_v6addr() instead of construct the whole pkt into NeighborSolicitionPacket
-            let tgt_addr = unsafe { Arc::new(address_translation::construct_v6addr(&shared_packet[48..64])) };
+            let tgt_addr = unsafe {
+                Arc::new(address_translation::construct_v6addr(
+                    &shared_packet[48..64],
+                ))
+            };
             // logging
             unsafe {
-                trace!("NSMonitor for {}: Get a NS from {} to {} looking for 🔍{}🔍.",
+                trace!(
+                    "NSMonitor for {}: Get a NS from {} to {} looking for 🔍{}🔍.",
                     self.iface.get_name(),
                     // src_addr
                     address_translation::construct_v6addr(&shared_packet[8..24]),
@@ -68,19 +78,21 @@ impl NSMonitor {
                 );
             }
             // logging again
-            trace!("NSMonitor for {}: get route for 🔍{}🔍 - {:?}",
+            trace!(
+                "NSMonitor for {}: Get route for 🔍{}🔍 - {:?}",
                 self.iface.get_name(),
                 tgt_addr,
-                self.routing_table.longest_match(*tgt_addr));
+                self.routing_table.longest_match(*tgt_addr)
+            );
             if let Some((_pfx, _pfx_len, sender)) = self.routing_table.longest_match(*tgt_addr) {
-                if let Err(e) = sender.send((*self.iface.get_scope_id(), tgt_addr ,shared_packet)) {
+                if let Err(e) = sender.send((*self.iface.get_scope_id(), tgt_addr, shared_packet)) {
                     error!("NSMonitor for {}: _{:?}_ Failed to send the packet to its corresponding proxier.",
                         self.iface.get_name(),
                         e);
-                    break;
+                    return Err(());
                 };
             }
         }
-        //Ok(())
+        Ok(())
     }
 }
