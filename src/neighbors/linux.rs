@@ -4,6 +4,8 @@ use netlink_packet_route::rtnl::neighbour::nlas::Nla;
 use pnet::util::MacAddr;
 use rtnetlink::{new_connection, IpVersion};
 use std::net::Ipv6Addr;
+use std::time::Duration;
+use ttl_cache::TtlCache;
 
 struct NeighborStates;
 #[allow(dead_code)]
@@ -22,59 +24,82 @@ impl NeighborStates {
 pub struct Neighbors {
     // communicate with netlink
     handle: rtnetlink::NeighbourHandle,
+    cache: TtlCache<Ipv6Addr, (Vec<u8>, u32)>,
 }
 
 impl Neighbors {
+    pub const CACHE_LIFETIME: Duration = Duration::from_millis(100);
+
     pub fn new() -> Self {
         let (connection, handle, _) = new_connection().unwrap();
         tokio::spawn(connection);
-        Neighbors { handle: handle.neighbours() }
+        Self {
+            handle: handle.neighbours(),
+            cache: TtlCache::new(256),
+        }
     }
 
-    // check whether we have the related neighbor entry
-    pub async fn check_whehter_entry_exists(&self, my_entry: &Ipv6Addr) -> Option<(MacAddr, u32)> {
-        let mut neighbors = self
-            .handle
-            .get()
-            .set_family(IpVersion::V6)
-            .execute();
+    async fn update_cache(&mut self) {
+        // return if cache is not expired
+        if let Some(_) = self.cache.get(&Ipv6Addr::UNSPECIFIED) {
+            return;
+        };
+        //
+        self.cache
+            .insert(Ipv6Addr::UNSPECIFIED, (vec![], 0), Self::CACHE_LIFETIME);
+        //
+        let mut neighbors = self.handle.get().set_family(IpVersion::V6).execute();
         while let Ok(Some(entry)) = neighbors.try_next().await {
-            let mut iter_through_nlas = entry.nlas.iter();
-            while let Some(Nla::Destination(destip)) = iter_through_nlas.next() {
-                // break if this entry does not match our requested address.
-                if &unsafe { address_translation::construct_v6addr(destip) } != my_entry {
-                    break;
-                };
-                match entry.header.state {
-                    // some states which indicate that the neighor MAY exist.
-                    NeighborStates::NUD_PERMANENT
-                    | NeighborStates::NUD_NOARP
-                    | NeighborStates::NUD_REACHABLE
-                    | NeighborStates::NUD_PROBE
-                    | NeighborStates::NUD_STALE
-                    | NeighborStates::NUD_DELAY => {
-                        // get it a Mac address and return
-                        let mut macaddr = MacAddr::zero();
-                        let mut iter_through_nlas = entry.nlas.iter();
-                        while let Some(Nla::LinkLocalAddress(v)) = iter_through_nlas.next() {
-                            macaddr.0 = v[0];
-                            macaddr.1 = v[1];
-                            macaddr.2 = v[2];
-                            macaddr.3 = v[3];
-                            macaddr.4 = v[4];
-                            macaddr.5 = v[5];
-                        }
-                        return Some((macaddr, entry.header.ifindex));
+            // update cache only if the neighbor presents
+            match entry.header.state {
+                // some states which indicate that the neighor MAY exist.
+                NeighborStates::NUD_PERMANENT
+                | NeighborStates::NUD_NOARP
+                | NeighborStates::NUD_REACHABLE
+                | NeighborStates::NUD_PROBE
+                | NeighborStates::NUD_STALE
+                | NeighborStates::NUD_DELAY => (),
+                _ => continue,
+            };
+            //
+            let ifidx = entry.header.ifindex;
+            let mut v6addr = Ipv6Addr::UNSPECIFIED;
+            let mut hwaddr = vec![];
+            for item in entry.nlas.into_iter() {
+                match item {
+                    Nla::Destination(destip) => {
+                        v6addr = unsafe { address_translation::construct_v6addr(&destip) }
                     }
+                    Nla::LinkLocalAddress(v) => hwaddr = v,
                     _ => (),
                 }
             }
+            self.cache
+                .insert(v6addr, (hwaddr, ifidx), Self::CACHE_LIFETIME);
         }
-        None
     }
 
-    // sync version
-    pub fn check_whehter_entry_exists_sync(&self, my_entry: &Ipv6Addr) -> Option<(MacAddr, u32)> {
-        block_on(self.check_whehter_entry_exists(my_entry))
+    // check whether we have the related neighbor entry
+    pub async fn check_whehter_entry_exists(
+        &mut self,
+        my_entry: &Ipv6Addr,
+    ) -> Option<(MacAddr, u32)> {
+        //
+        self.update_cache().await;
+        //
+        match self.cache.get(my_entry) {
+            Some((hwaddr_vec, ifidx)) => Some((
+                MacAddr(
+                    hwaddr_vec[0],
+                    hwaddr_vec[1],
+                    hwaddr_vec[2],
+                    hwaddr_vec[3],
+                    hwaddr_vec[4],
+                    hwaddr_vec[5],
+                ),
+                *ifidx,
+            )),
+            None => None,
+        }
     }
 }
