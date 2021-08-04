@@ -80,7 +80,7 @@ impl NDProxier {
         })
     }
 
-    pub async fn run(mut self) {
+    pub async fn run(mut self) -> Result<(), ()> {
         drop(self.mpsc_sender.take());
         // TODO: logging
         match self.proxy_type {
@@ -89,7 +89,7 @@ impl NDProxier {
         }
     }
 
-    pub async fn run_static(mut self) {
+    async fn run_static(mut self) -> Result<(), ()> {
         while let Some((scope_id, tgt_addr, packet)) = self.mpsc_receiver.recv().await {
             let macaddr = match self.upstream_ifs.get(&scope_id) {
                 Some(iface) => iface.get_hwaddr(),
@@ -101,10 +101,10 @@ impl NDProxier {
                 break;
             }
         }
-
+        Ok(())
     }
 
-    pub async fn run_forward(mut self) {// -> Result<(), ()> {
+    async fn run_forward(mut self) -> Result<(), ()> {
         while let Some((scope_id, tgt_addr, packet)) = self.mpsc_receiver.recv().await {
             // TODO: unwrap or continue?
             let ns_packet = ndp::NeighborSolicitPacket::new(&packet[40..]).unwrap();
@@ -129,7 +129,7 @@ impl NDProxier {
                 }
             }
         }
-        //Ok(())
+        Ok(())
     }
 
     fn send_na_to_upstream(

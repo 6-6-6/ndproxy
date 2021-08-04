@@ -9,6 +9,9 @@ mod ns_monitor;
 mod routing;
 
 use argparse::{ArgumentParser, Store};
+use futures::select;
+use futures::stream::FuturesUnordered;
+use tokio::task::spawn_blocking;
 
 #[tokio::main]
 async fn main() -> Result<(), ()> {
@@ -35,32 +38,28 @@ async fn main() -> Result<(), ()> {
     }));
 
     let myconf = conf::parse_config(&config_filename);
-    let mut fut2 = Vec::new();
     //
-    let mut pp = std::collections::HashMap::new();
+    let ndproxiers = FuturesUnordered::new();
     //
-    let (iface1, iface2) = interfaces::get_ifaces_defined_by_config(&myconf[0]);
+    let mut route_map = std::collections::HashMap::new();
+    //
+    let (iface1, _iface2) = interfaces::get_ifaces_defined_by_config(&myconf[0]);
     for conf in myconf.into_iter() {
-        let mut test = nd_proxy::NDProxier::new(conf).unwrap();
-        pp.insert(*test.get_proxied_prefix(), test.mpsc_sender_mut().take().unwrap());
-        fut2.push(test.run());
+        let mut proxifier = nd_proxy::NDProxier::new(conf).unwrap();
+        route_map.insert(*proxifier.get_proxied_prefix(), proxifier.mpsc_sender_mut().take().unwrap());
+        ndproxiers.push(proxifier.run());
     };
-
-    // select
-    use futures::future::join_all;
-    use futures::{
-        future::FutureExt, // for `.boxed()`
-        pin_mut,
-        select,
-        join
-    };
-    use tokio::task::spawn_blocking;
-    let mut fut = Vec::new();
-    for (u, ifs) in iface1 {
-        let test = ns_monitor::NSMonitor::new(routing::construst_route_table(pp.clone()), ifs).unwrap();
-        fut.push(spawn_blocking(move || { test.run() } ).boxed());
+    //
+    let nsmonitors = FuturesUnordered::new();
+    for (_u, ifs) in iface1 {
+        let nsm = ns_monitor::NSMonitor::new(routing::construst_route_table(route_map.clone()), ifs).unwrap();
+        nsmonitors.push(spawn_blocking(move || { nsm.run() } ));
     }
-    drop(pp);
-    join!(join_all(fut), join_all(fut2));
-    Ok(())
+    // because route_map contains mpsc::Sender, I will drop it to make these Senders unavailable
+    drop(route_map);
+    // main loop
+    select! {
+        default => Err(()),
+        complete => Ok(()),
+    }
 }

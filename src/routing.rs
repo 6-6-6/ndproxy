@@ -4,7 +4,6 @@ use treebitmap::IpLookupTable;
 use std::net::Ipv6Addr;
 use ipnet::Ipv6Net;
 use std::collections::HashMap;
-use pnet::util::MacAddr;
 
 pub type SharedNSPacket = (u32, Arc<Ipv6Addr>, Arc<Vec<u8>>);
 pub type SharedNSPacketSender = mpsc::UnboundedSender<SharedNSPacket>;
