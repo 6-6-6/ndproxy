@@ -87,7 +87,9 @@ impl NSMonitor {
             if let Some((pfx, _pfx_len, sender)) = self.routing_table.longest_match(*tgt_addr) {
                 // NOT forwarding NS for some special addresses
                 //     1. https://datatracker.ietf.org/doc/html/rfc4291#section-2.6.1
-                if pfx == *tgt_addr { continue };
+                if pfx == *tgt_addr {
+                    continue;
+                };
                 //
                 if let Err(e) = sender.send((*self.iface.get_scope_id(), tgt_addr, shared_packet)) {
                     error!("NSMonitor for {}: _{:?}_ Failed to send the packet to its corresponding proxier.",

@@ -4,7 +4,7 @@ use crate::neighbors::Neighbors;
 use crate::packets;
 use crate::routing::{SharedNSPacketReceiver, SharedNSPacketSender};
 use ipnet::Ipv6Net;
-use log::{error, info, trace};
+use log::{error, info, trace, warn};
 use pnet::packet::{icmpv6::ndp, Packet};
 use pnet::util::MacAddr;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -82,7 +82,7 @@ impl NDProxier {
 
     pub async fn run(mut self) -> Result<(), ()> {
         drop(self.mpsc_sender.take());
-        // TODO: logging
+        warn!("NDProxier for {}: Start to work.", self.proxied_prefix);
         match self.proxy_type {
             PROXY_STATIC => self.run_static().await,
             _ => self.run_forward().await,
@@ -154,7 +154,10 @@ impl NDProxier {
     ) -> Result<(), ()> {
         info!(
             "NDProxier for {}: Send NA for {} to {} on interface {}",
-            self.proxied_prefix, proxied_addr, ns_origin, scope_id
+            self.proxied_prefix,
+            proxied_addr,
+            ns_origin,
+            self.upstream_ifs.get(&scope_id).unwrap().get_name()
         );
         // randomly send to multicast
         let na_pkt = match packets::generate_NA_forwarded(

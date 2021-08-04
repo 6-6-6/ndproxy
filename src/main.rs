@@ -8,8 +8,7 @@ mod packets;
 mod routing;
 
 use argparse::{ArgumentParser, Store};
-use futures::select;
-use futures::stream::FuturesUnordered;
+use futures::future::{select, select_all, FutureExt};
 use tokio::task::spawn_blocking;
 
 #[tokio::main]
@@ -38,10 +37,9 @@ async fn main() -> Result<(), ()> {
 
     let myconf = conf::parse_config(&config_filename);
     //
-    let ndproxiers = FuturesUnordered::new();
-    //
     let mut route_map = std::collections::HashMap::new();
     //
+    let mut ndproxiers = Vec::new();
     let (iface1, _iface2) = interfaces::get_ifaces_defined_by_config(&myconf[0]);
     for conf in myconf.into_iter() {
         let mut proxifier = nd_proxy::NDProxier::new(conf).unwrap();
@@ -49,10 +47,10 @@ async fn main() -> Result<(), ()> {
             *proxifier.get_proxied_prefix(),
             proxifier.mpsc_sender_mut().take().unwrap(),
         );
-        ndproxiers.push(proxifier.run());
+        ndproxiers.push(proxifier.run().boxed());
     }
     //
-    let nsmonitors = FuturesUnordered::new();
+    let mut nsmonitors = Vec::new();
     for (_u, ifs) in iface1 {
         let nsm =
             ns_monitor::NSMonitor::new(routing::construst_route_table(route_map.clone()), ifs)
@@ -62,8 +60,6 @@ async fn main() -> Result<(), ()> {
     // because route_map contains mpsc::Sender, I will drop it to make these Senders unavailable
     drop(route_map);
     // main loop
-    select! {
-        default => Err(()),
-        complete => Ok(()),
-    }
+    select(select_all(ndproxiers), select_all(nsmonitors)).await;
+    Ok(())
 }
