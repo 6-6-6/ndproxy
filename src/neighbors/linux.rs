@@ -27,6 +27,7 @@ pub struct Neighbors {
 }
 
 impl Neighbors {
+    // TODO: magic number here
     pub const CACHE_LIFETIME: Duration = Duration::from_millis(150);
 
     pub fn new() -> Self {

@@ -128,7 +128,7 @@ impl NDProxier {
                         return Err(());
                     }
                 }
-                // TODO: magic number
+                // TODO: magic number here
                 Some((cnt, false)) if *cnt > 5 => continue,
                 _ => {
                     // TODO: is the Error returned by the function critical?
@@ -173,7 +173,7 @@ impl NDProxier {
                     "NDProxier for {}: Failed to generate Neighbor Advertisement packet.",
                     self.proxied_prefix,
                 );
-                // TODO: err or ok
+                // TODO: return err or ok
                 return Err(());
             }
         };
@@ -222,7 +222,7 @@ impl NDProxier {
                     "NDProxier for {}: Failed to generate ICMPv6 packet.",
                     self.proxied_prefix,
                 );
-                // TODO: err or ok
+                // TODO: return err or ok
                 return Err(());
             }
         };
