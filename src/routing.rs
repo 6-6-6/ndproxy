@@ -9,7 +9,8 @@ pub type SharedNSPacket = (u32, Arc<Ipv6Addr>, Arc<Vec<u8>>);
 pub type SharedNSPacketSender = mpsc::UnboundedSender<SharedNSPacket>;
 pub type SharedNSPacketReceiver = mpsc::UnboundedReceiver<SharedNSPacket>;
 
-pub fn construst_route_table(
+/// create a routing table from a HashMap that stores route entries
+pub fn construst_routing_table(
     mut prelude: HashMap<Ipv6Net, SharedNSPacketSender>,
 ) -> IpLookupTable<Ipv6Addr, SharedNSPacketSender> {
     let mut ret = IpLookupTable::new();

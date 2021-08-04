@@ -7,6 +7,8 @@ use std::sync::Arc;
 use treebitmap::IpLookupTable;
 
 /// monitors for Neighbor Solicitation
+/// the received packet will be sent to the corresponding NDProxy via mpsc
+/// the corresponding NDProxy is determined by looking up the route entry for the target address in routing table
 #[derive(getset::Getters, getset::Setters, getset::MutGetters)]
 pub struct NSMonitor {
     #[get_mut = "pub with_prefix"]
@@ -92,7 +94,7 @@ impl NSMonitor {
                 };
                 //
                 if let Err(e) = sender.send((*self.iface.get_scope_id(), tgt_addr, shared_packet)) {
-                    error!("NSMonitor for {}: _{:?}_ Failed to send the packet to its corresponding proxier.",
+                    error!("NSMonitor for {}: _{:?}_ Failed to send the packet to its corresponding proxy.",
                         self.iface.get_name(),
                         e);
                     return Err(());

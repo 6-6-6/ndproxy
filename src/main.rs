@@ -38,28 +38,28 @@ async fn main() -> Result<(), ()> {
     let myconf = conf::parse_config(&config_filename);
     //
     let mut route_map = std::collections::HashMap::new();
-    //
-    let mut ndproxiers = Vec::new();
+    // prepare proxies for proxied_prefixes
+    let mut ndproxies = Vec::new();
     let (iface1, _iface2) = interfaces::get_ifaces_defined_by_config(&myconf[0]);
     for conf in myconf.into_iter() {
-        let mut proxifier = nd_proxy::NDProxier::new(conf).unwrap();
+        let mut proxy = nd_proxy::NDProxy::new(conf).unwrap();
         route_map.insert(
-            *proxifier.get_proxied_prefix(),
-            proxifier.mpsc_sender_mut().take().unwrap(),
+            *proxy.get_proxied_prefix(),
+            proxy.mpsc_sender_mut().take().unwrap(),
         );
-        ndproxiers.push(proxifier.run().boxed());
+        ndproxies.push(proxy.run().boxed());
     }
-    //
+    // prepare monitors for Neighbor Solicitations
     let mut nsmonitors = Vec::new();
     for (_u, ifs) in iface1 {
         let nsm =
-            ns_monitor::NSMonitor::new(routing::construst_route_table(route_map.clone()), ifs)
+            ns_monitor::NSMonitor::new(routing::construst_routing_table(route_map.clone()), ifs)
                 .unwrap();
         nsmonitors.push(spawn_blocking(move || nsm.run()));
     }
     // because route_map contains mpsc::Sender, I will drop it to make these Senders unavailable
     drop(route_map);
     // main loop
-    select(select_all(ndproxiers), select_all(nsmonitors)).await;
+    select(select_all(ndproxies), select_all(nsmonitors)).await;
     Ok(())
 }

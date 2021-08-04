@@ -8,11 +8,18 @@ use socket2::{Domain, Protocol, Socket, Type};
 use std::mem::MaybeUninit;
 
 pub trait PacketReceiverOpts {
+    /// bind the socket to a particular interface
     fn bind_to_interface(&self, iface: &interfaces::NDInterface) -> Result<(), i32>;
+    /// set the socket to receive all of the multicast messages
     fn set_allmulti(&self, iface: &interfaces::NDInterface) -> Result<(), i32>;
+    /// setup a packet filter (in-kernel) to drop the irrelavant packets
+    /// and only copy Neighbor Solicitation packets to userland
+    ///
+    /// for Unix-like systems, classic BPF is used
     fn set_filter_pass_ipv6_ns(&self) -> Result<(), i32>;
 }
 
+/// wrapper for socket::Socket
 pub struct PacketReceiver {
     socket: Socket,
     buf: Vec<MaybeUninit<u8>>,
