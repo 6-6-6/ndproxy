@@ -1,18 +1,18 @@
 use crate::conf::{NDConfig, ADDRESS_NETMAP, ADDRESS_NPT, PROXY_STATIC};
+use crate::interfaces::{get_ifaces_defined_by_config, NDInterface};
+use crate::neighbors::Neighbors;
 use crate::packets;
 use crate::routing::{SharedNSPacketReceiver, SharedNSPacketSender};
-use crate::neighbors::Neighbors;
-use crate::interfaces::{NDInterface, get_ifaces_defined_by_config};
 use ipnet::Ipv6Net;
-use log::{error, warn, info, trace};
-use pnet::packet::{Packet, icmpv6::ndp};
+use log::{error, info, trace};
+use pnet::packet::{icmpv6::ndp, Packet};
 use pnet::util::MacAddr;
 use socket2::{Domain, Protocol, Socket, Type};
+use std::collections::HashMap;
 use std::net::{Ipv6Addr, SocketAddrV6};
+use std::time::Duration;
 use tokio::sync::mpsc;
 use ttl_cache::TtlCache;
-use std::collections::HashMap;
-use std::time::Duration;
 
 #[derive(getset::Getters, getset::MutGetters)]
 pub struct NDProxier {
@@ -50,16 +50,14 @@ impl NDProxier {
         if let Err(e) = pkt_sender.set_multicast_hops_v6(255) {
             error!(
                 "NDProxier for {}: [{:?}] Failed to set multicast hops to 255",
-                proxied_prefix,
-                e
+                proxied_prefix, e
             );
             return None;
         };
         if let Err(e) = pkt_sender.set_unicast_hops_v6(255) {
             error!(
                 "NDProxier for {}: [{:?}] Failed to set uniicast hops to 255",
-                proxied_prefix,
-                e
+                proxied_prefix, e
             );
             return None;
         };
@@ -99,7 +97,12 @@ impl NDProxier {
             };
             let src_addr = unsafe { address_translation::construct_v6addr(&packet[8..]) };
             // TODO: randomly send to multicast addr
-            if self.send_na_to_upstream(src_addr, *tgt_addr, macaddr, scope_id).is_err() { return Err(()); }
+            if self
+                .send_na_to_upstream(src_addr, *tgt_addr, macaddr, scope_id)
+                .is_err()
+            {
+                return Err(());
+            }
         }
         Ok(())
     }
@@ -118,13 +121,24 @@ impl NDProxier {
                 Some((_, true)) => {
                     let src_addr = unsafe { address_translation::construct_v6addr(&packet[8..]) };
                     // TODO: randomly send to multicast addr
-                    if self.send_na_to_upstream(src_addr, *tgt_addr, macaddr, scope_id).is_err() { return Err(()); }
+                    if self
+                        .send_na_to_upstream(src_addr, *tgt_addr, macaddr, scope_id)
+                        .is_err()
+                    {
+                        return Err(());
+                    }
                 }
                 // TODO: magic number
                 Some((cnt, false)) if *cnt > 5 => continue,
                 _ => {
                     // TODO: is the Error returned by the function critical?
-                    self.forward_ns_to_downstream(*tgt_addr, scope_id, ns_packet).await;
+                    if self
+                        .forward_ns_to_downstream(*tgt_addr, scope_id, ns_packet)
+                        .await
+                        .is_err()
+                    {
+                        return Err(());
+                    };
                 }
             }
         }
@@ -138,11 +152,9 @@ impl NDProxier {
         src_hwaddr: &MacAddr,
         scope_id: u32,
     ) -> Result<(), ()> {
-        info!("NDProxier for {}: Send NA for {} to {} on interface {}",
-            self.proxied_prefix,
-            proxied_addr,
-            ns_origin,
-            scope_id
+        info!(
+            "NDProxier for {}: Send NA for {} to {} on interface {}",
+            self.proxied_prefix, proxied_addr, ns_origin, scope_id
         );
         // randomly send to multicast
         let na_pkt = match packets::generate_NA_forwarded(
@@ -151,21 +163,25 @@ impl NDProxier {
             &proxied_addr,
             src_hwaddr,
             self.na_flag,
-        )
-        {
+        ) {
             Some(v) => v,
             None => {
-                error!("NDProxier for {}: Failed to generate Neighbor Advertisement packet.",
+                error!(
+                    "NDProxier for {}: Failed to generate Neighbor Advertisement packet.",
                     self.proxied_prefix,
                 );
                 // TODO: err or ok
-                return Err(())
+                return Err(());
             }
         };
-        match self.pkt_sender.send_to(na_pkt.packet(), &SocketAddrV6::new(ns_origin, 0, 0, scope_id).into()) {
+        match self.pkt_sender.send_to(
+            na_pkt.packet(),
+            &SocketAddrV6::new(ns_origin, 0, 0, scope_id).into(),
+        ) {
             Ok(_) => Ok(()),
             Err(e) => {
-                error!("NDProxier for {}: [{:?}] failed to send Neighbor Advertisement packet to interface {}.",
+                error!(
+                    "NDProxier for {}: [{:?}] failed to send Neighbor Advertisement packet to interface {}.",
                     self.proxied_prefix,
                     e,
                     self.upstream_ifs.get(&scope_id).unwrap().get_name()
@@ -175,49 +191,78 @@ impl NDProxier {
         }
     }
 
-    async fn forward_ns_to_downstream(&mut self, proxied_addr: Ipv6Addr, origin_scope_id: u32, original_packet: ndp::NeighborSolicitPacket<'_>) -> Result<(), ()> {
+    async fn forward_ns_to_downstream(
+        &mut self,
+        proxied_addr: Ipv6Addr,
+        origin_scope_id: u32,
+        original_packet: ndp::NeighborSolicitPacket<'_>,
+    ) -> Result<(), ()> {
         let rewrited_addr = match self.address_mangling {
             ADDRESS_NETMAP => address_translation::netmapv6(proxied_addr, &self.rewrite_prefix),
-            ADDRESS_NPT => address_translation::nptv6(self.proxied_prefix_csum, self.rewrite_prefix_csum, proxied_addr, &self.rewrite_prefix),
+            ADDRESS_NPT => address_translation::nptv6(
+                self.proxied_prefix_csum,
+                self.rewrite_prefix_csum,
+                proxied_addr,
+                &self.rewrite_prefix,
+            ),
             _ => proxied_addr,
         };
         //
-        let ns_trick = match packets::generate_NS_trick(&original_packet, &Ipv6Addr::UNSPECIFIED, &rewrited_addr) {
+        let ns_trick = match packets::generate_NS_trick(
+            &original_packet,
+            &Ipv6Addr::UNSPECIFIED,
+            &rewrited_addr,
+        ) {
             Some(v) => v,
             None => {
-                error!("NDProxier for {}: Failed to generate ICMPv6 packet.",
+                error!(
+                    "NDProxier for {}: Failed to generate ICMPv6 packet.",
                     self.proxied_prefix,
                 );
                 // TODO: err or ok
-                return Err(())
+                return Err(());
             }
         };
         // logging
-        trace!("NDProxier for {}: Send packet to {}.",
+        trace!(
+            "NDProxier for {}: Send packet to {}.",
             self.proxied_prefix,
             rewrited_addr,
         );
         for id in self.downstream_ifs.keys() {
-            if *id == origin_scope_id { continue };
-            if let Err(e) = self.pkt_sender.send_to(ns_trick.packet(), &SocketAddrV6::new(rewrited_addr, 0, 0, *id).into()) {
-                error!("NDProxier for {}: [{:?}] failed to send packet to interface {}.",
+            if *id == origin_scope_id {
+                continue;
+            };
+            if let Err(e) = self.pkt_sender.send_to(
+                ns_trick.packet(),
+                &SocketAddrV6::new(rewrited_addr, 0, 0, *id).into(),
+            ) {
+                error!(
+                    "NDProxier for {}: [{:?}] failed to send packet to interface {}.",
                     self.proxied_prefix,
                     e,
                     self.downstream_ifs.get(id).unwrap().get_name(),
                 );
-                return Err(())
+                return Err(());
             };
         }
         // update cache
-        match self.neighbors.check_whehter_entry_exists(&rewrited_addr).await {
+        match self
+            .neighbors
+            .check_whehter_entry_exists(&rewrited_addr)
+            .await
+        {
             Some(_) => {
-                self.cache.insert(proxied_addr, (0, true), Duration::from_secs(120));
-            },
-            None => {
-                match self.cache.get_mut(&proxied_addr) {
+                self.cache
+                    .insert(proxied_addr, (0, true), Duration::from_secs(120));
+            }
+            None => match self.cache.get_mut(&proxied_addr) {
                 Some((cnt, false)) => *cnt += 1,
-                _ => { self.cache.insert(proxied_addr, (0, false), Duration::from_secs(10)); },
-            }},
+                _ => {
+                    self.cache
+                        .insert(proxied_addr, (0, false), Duration::from_secs(10));
+                }
+            },
         };
         Ok(())
     }
