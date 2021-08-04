@@ -49,14 +49,17 @@ pub fn generate_NA_forwarded<'a>(
  * and let the OS complete the Neighbor Discovery process.
  */
 #[allow(non_snake_case)]
-pub fn generate_NS_trick<'a>(
-    original_packet: &'a ndp::NeighborSolicitPacket,
+pub fn generate_NS_trick<'a, 'b>(
+    original_packet: &ndp::NeighborSolicitPacket<'a>,
     src_addr: &Ipv6Addr,
     dst_addr: &Ipv6Addr,
-) -> Option<Icmpv6Packet<'a>> {
+) -> Option<Icmpv6Packet<'b>> {
     let pkt_buf: Vec<u8> =
         vec![0; original_packet.packet_size() + Icmpv6Packet::minimum_packet_size()];
-    let mut ret = MutableIcmpv6Packet::owned(pkt_buf).unwrap();
+    let mut ret = match MutableIcmpv6Packet::owned(pkt_buf) {
+        Some(v) => v,
+        None => return None,
+    };
     // update the option field if needed
     // convert it into a icmp echo request
     ret.set_icmpv6_type(Icmpv6Types::EchoRequest);
@@ -75,91 +78,4 @@ pub fn generate_NS_trick<'a>(
     Some(ret.consume_to_immutable())
 }
 
-//TODO: tests
-
-/*
- * these code are for the normal way to proxy neighbor discovery
- * that is, to forward NS packets to downstream
- * and to forward the reply NA packets to upstream
- * maybe unmasked someday.
-
-// generate NS packet from the old one
-pub fn generate_NS_proxied<'a>(original_packet: &'a ndp::NeighborSolicitPacket,
-        src_addr: &Ipv6Addr,
-        dst_addr: &Ipv6Addr,
-        src_hwaddr: &MacAddr,
-        ) -> Option<ndp::NeighborSolicitPacket <'a>> {
-
-    let pkt_buf: Vec<u8> = vec![0; original_packet.packet_size()];
-    let mut ret = match ndp::MutableNeighborSolicitPacket::owned(pkt_buf) {
-        Some(v) => v,
-        None => return None,
-    };
-    // copy most of the information from the original one
-    ret.clone_from(original_packet);
-    // update the option field if needed
-    // TODO: carefully deal with it with reference to RFC 4861/RFC 4389
-    let mut new_options: Vec<ndp::NdpOption> = Vec::new();
-    ret.set_options(&new_options);
-    for option in original_packet.get_options() {
-        match option.option_type {
-            ndp::NdpOptionTypes::SourceLLAddr => {
-                println!("{:?}", option);
-                new_options.push(ndp::NdpOption{
-                    option_type: ndp::NdpOptionTypes::SourceLLAddr,
-                    length: 1,
-                    data: src_hwaddr.octets().to_vec(),
-                })
-            },
-            _ => new_options.push(option)
-        }
-    }
-    println!("{:?}", new_options);
-    ret.set_options(&new_options);
-    //
-    let csum = pnet::util::ipv6_checksum(
-        ret.packet(), 1, &[], src_addr, dst_addr, pnet::packet::ip::IpNextHeaderProtocols::Icmpv6);
-    ret.set_checksum(csum);
-
-    Some(ret.consume_to_immutable())
-}
-
-// generate NA packet from the old one
-pub fn generate_NA_proxied<'a>(original_packet: &'a ndp::NeighborAdvertPacket,
-        src_addr: &Ipv6Addr,
-        dst_addr: &Ipv6Addr,
-        ) -> Option<ndp::NeighborAdvertPacket <'a>> {
-
-    let pkt_buf: Vec<u8> = vec![0; original_packet.packet_size()];
-    let mut ret = match ndp::MutableNeighborAdvertPacket::owned(pkt_buf) {
-        Some(v) => v,
-        None => return None,
-    };
-    // copy most of the information from the original one
-    ret.clone_from(original_packet);
-    // force O flag to be 0
-    ret.set_flags(ret.get_flags() & 0xdf);
-    // update the option field if needed
-    // TODO: carefully deal with it with reference to RFC 4861/RFC 4389
-    let mut new_options: Vec<ndp::NdpOption> = Vec::new();
-    for option in original_packet.get_options() {
-        match option.option_type {
-            ndp::NdpOptionTypes::TargetLLAddr => {
-                new_options.push(ndp::NdpOption{
-                    option_type: ndp::NdpOptionTypes::TargetLLAddr,
-                    length: 1,
-                    data: src_addr.octets().to_vec(),
-                })
-            },
-            _ => new_options.push(option)
-        }
-    }
-    ret.set_options(&new_options);
-    //
-    let csum = pnet::util::ipv6_checksum(
-        ret.packet(), 1, &[], src_addr, dst_addr, pnet::packet::ip::IpNextHeaderProtocols::Icmpv6);
-    ret.set_checksum(csum);
-
-    Some(ret.consume_to_immutable())
-}
-*/
+//TODO: testss

@@ -1,12 +1,15 @@
-mod address;
 mod conf;
 mod datalink;
 mod interfaces;
+mod nd_proxy;
 mod neighbors;
+mod ns_monitor;
 mod packets;
-mod proxy;
+mod routing;
 
 use argparse::{ArgumentParser, Store};
+use futures::future::{select, select_all, FutureExt};
+use tokio::task::spawn_blocking;
 
 #[tokio::main]
 async fn main() -> Result<(), ()> {
@@ -33,6 +36,30 @@ async fn main() -> Result<(), ()> {
     }));
 
     let myconf = conf::parse_config(&config_filename);
-    proxy::spawn_monitors_and_forwarders(myconf);
+    //
+    let mut route_map = std::collections::HashMap::new();
+    //
+    let mut ndproxiers = Vec::new();
+    let (iface1, _iface2) = interfaces::get_ifaces_defined_by_config(&myconf[0]);
+    for conf in myconf.into_iter() {
+        let mut proxifier = nd_proxy::NDProxier::new(conf).unwrap();
+        route_map.insert(
+            *proxifier.get_proxied_prefix(),
+            proxifier.mpsc_sender_mut().take().unwrap(),
+        );
+        ndproxiers.push(proxifier.run().boxed());
+    }
+    //
+    let mut nsmonitors = Vec::new();
+    for (_u, ifs) in iface1 {
+        let nsm =
+            ns_monitor::NSMonitor::new(routing::construst_route_table(route_map.clone()), ifs)
+                .unwrap();
+        nsmonitors.push(spawn_blocking(move || nsm.run()));
+    }
+    // because route_map contains mpsc::Sender, I will drop it to make these Senders unavailable
+    drop(route_map);
+    // main loop
+    select(select_all(ndproxiers), select_all(nsmonitors)).await;
     Ok(())
 }

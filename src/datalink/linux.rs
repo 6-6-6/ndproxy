@@ -29,7 +29,7 @@ impl PacketReceiverOpts for PacketReceiver {
         }
     }
 
-    fn set_promiscuous(&self, iface: &interfaces::NDInterface) -> Result<(), i32> {
+    fn set_allmulti(&self, iface: &interfaces::NDInterface) -> Result<(), i32> {
         let mut pmr: libc::packet_mreq = unsafe { std::mem::zeroed() };
         pmr.mr_ifindex = *iface.get_scope_id() as i32;
         pmr.mr_type = libc::PACKET_MR_ALLMULTI as u16;
