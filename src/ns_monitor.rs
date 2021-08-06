@@ -61,9 +61,9 @@ impl NSMonitor {
                 continue;
             };
             let shared_packet = Arc::new(packet);
-            // call construct_v6addr() instead of construct the whole pkt into NeighborSolicitionPacket
+            // call construct_v6addr_unchecked() instead of construct the whole pkt into NeighborSolicitionPacket
             let tgt_addr = unsafe {
-                Arc::new(address_translation::construct_v6addr(
+                Arc::new(address_translation::construct_v6addr_unchecked(
                     &shared_packet[48..64],
                 ))
             };
@@ -73,9 +73,9 @@ impl NSMonitor {
                     "NSMonitor for {}: Get a NS from {} to {} looking for 🔍{}🔍.",
                     self.iface.get_name(),
                     // src_addr
-                    address_translation::construct_v6addr(&shared_packet[8..24]),
+                    address_translation::construct_v6addr_unchecked(&shared_packet[8..24]),
                     // dst_addr
-                    address_translation::construct_v6addr(&shared_packet[24..40]),
+                    address_translation::construct_v6addr_unchecked(&shared_packet[24..40]),
                     tgt_addr,
                 );
             }

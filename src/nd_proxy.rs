@@ -101,7 +101,7 @@ impl NDProxy {
                 Some(iface) => iface.get_hwaddr(),
                 None => continue,
             };
-            let src_addr = unsafe { address_translation::construct_v6addr(&packet[8..]) };
+            let src_addr = unsafe { address_translation::construct_v6addr_unchecked(&packet[8..]) };
             // TODO: randomly send to multicast addr
             if self
                 .send_na_to_upstream(src_addr, *tgt_addr, macaddr, scope_id)
@@ -125,7 +125,8 @@ impl NDProxy {
             };
             match self.cache.get(&tgt_addr) {
                 Some((_, true)) => {
-                    let src_addr = unsafe { address_translation::construct_v6addr(&packet[8..]) };
+                    let src_addr =
+                        unsafe { address_translation::construct_v6addr_unchecked(&packet[8..]) };
                     // TODO: randomly send to multicast addr
                     if self
                         .send_na_to_upstream(src_addr, *tgt_addr, macaddr, scope_id)

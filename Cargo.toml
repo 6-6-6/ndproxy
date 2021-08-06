@@ -1,6 +1,6 @@
 [package]
 name = "ndproxy"
-version = "0.2.1"
+version = "0.2.1-dev"
 authors = ["Zhang Zongyu <zongyu@novazy.net>"]
 edition = "2018"
 license = "MIT"
@@ -11,9 +11,9 @@ readme = "README.md"
 
 
 [dependencies]
-address_translation = { git = "https://github.com/6-6-6/utils" }
+address_translation = "0.1.1"
 argparse = "0.2.2"
-classic_bpf = { git = "https://github.com/6-6-6/classic_bpf" }
+classic_bpf = "0.1.1"
 config = { version = "0.11.0", features = ["toml"] }
 futures = "0.3.16"
 getset = "0.1.1"

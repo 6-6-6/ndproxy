@@ -73,7 +73,7 @@ impl Neighbors {
             for item in entry.nlas.into_iter() {
                 match item {
                     Nla::Destination(destip) => {
-                        v6addr = unsafe { address_translation::construct_v6addr(&destip) }
+                        v6addr = unsafe { address_translation::construct_v6addr_unchecked(&destip) }
                     }
                     Nla::LinkLocalAddress(v) => hwaddr = v,
                     _ => (),
