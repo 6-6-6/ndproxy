@@ -35,6 +35,9 @@ pub struct NDProxy {
     mpsc_sender: Option<SharedNSPacketSender>,
     pkt_sender: Socket,
     na_flag: u8,
+    // TODO: an Rc<Lock<Neighbors>> would be better,
+    // because the ipv6 neighbors of the system could be shared across threads, since it is a global state
+    // share the value would help reduce the communication with the kernel
     neighbors: Neighbors,
     upstream_ifs: HashMap<u32, NDInterface>,
     downstream_ifs: HashMap<u32, NDInterface>,
@@ -48,7 +51,6 @@ impl NDProxy {
         let rewrite_prefix = *config.get_dst_pfx();
         let (mpsc_sender, mpsc_receiver) = mpsc::unbounded_channel();
         let (upstream_ifs, downstream_ifs) = get_ifaces_defined_by_config(&config);
-        // TODO: maybe a Lock<Arc<Socket>> would be better?
         let pkt_sender = match Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::ICMPV6)) {
             Ok(v) => v,
             Err(_) => return None,
