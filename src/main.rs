@@ -9,7 +9,9 @@ mod routing;
 
 use argparse::{ArgumentParser, Store};
 use futures::future::{select, select_all, FutureExt};
+use std::sync::Arc;
 use tokio::task::spawn_blocking;
+use tokio::sync::Mutex;
 
 #[tokio::main]
 async fn main() -> Result<(), ()> {
@@ -36,19 +38,21 @@ async fn main() -> Result<(), ()> {
     }));
 
     let myconf = conf::parse_config(&config_filename);
+    let (iface1, _iface2) = interfaces::get_ifaces_defined_by_config(&myconf[0]);
     //
     let mut route_map = std::collections::HashMap::new();
+    let neighbors = Arc::new(Mutex::new(neighbors::Neighbors::new()));
     // prepare proxies for proxied_prefixes
     let mut ndproxies = Vec::new();
-    let (iface1, _iface2) = interfaces::get_ifaces_defined_by_config(&myconf[0]);
     for conf in myconf.into_iter() {
-        let mut proxy = nd_proxy::NDProxy::new(conf).unwrap();
+        let mut proxy = nd_proxy::NDProxy::new(conf, neighbors.clone()).unwrap();
         route_map.insert(
             *proxy.get_proxied_prefix(),
             proxy.mpsc_sender_mut().take().unwrap(),
         );
         ndproxies.push(proxy.run().boxed());
     }
+
     // prepare monitors for Neighbor Solicitations
     let mut nsmonitors = Vec::new();
     for (_u, ifs) in iface1 {
@@ -57,8 +61,11 @@ async fn main() -> Result<(), ()> {
                 .unwrap();
         nsmonitors.push(spawn_blocking(move || nsm.run()));
     }
+
     // because route_map contains mpsc::Sender, I will drop it to make these Senders unavailable
     drop(route_map);
+    // drop useless variables
+    drop(neighbors);
     // main loop
     select(select_all(ndproxies), select_all(nsmonitors)).await;
     Ok(())
