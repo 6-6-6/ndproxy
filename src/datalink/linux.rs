@@ -49,7 +49,7 @@ impl PacketReceiverOpts for PacketReceiver {
     }
 
     fn set_filter_pass_ipv6_ns(&self) -> Result<(), i32> {
-        let mut ipv6_ns_filter = [
+        let ipv6_ns_filter = [
             // offsetof(ipv6 header, ipv6 next header)
             BPFFilter::bpf_stmt((BPF_LD | BPF_B | BPF_ABS) as u16, 6),
             BPFFilter::bpf_jump(
@@ -69,9 +69,7 @@ impl PacketReceiverOpts for PacketReceiver {
             BPFFilter::bpf_stmt((BPF_RET | BPF_K) as u16, u32::MAX),
             BPFFilter::bpf_stmt((BPF_RET | BPF_K) as u16, 0),
         ];
-        let ipv6_socket_fprog = BPFFProg::new(&mut ipv6_ns_filter);
-        // as *mut libc::sock_filter,
-        //};
+        let ipv6_socket_fprog = BPFFProg::new(&ipv6_ns_filter);
 
         ipv6_socket_fprog.attach_filter(self.socket.as_raw_fd())
     }

@@ -1,3 +1,3 @@
 //#[cfg(target_os = "linux")]
-pub mod linux;
+mod linux;
 pub use linux::*;

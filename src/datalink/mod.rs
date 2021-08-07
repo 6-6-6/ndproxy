@@ -1,5 +1,5 @@
 //#[cfg(target_os = "linux")]
-pub mod linux;
+mod linux;
 pub use linux::*;
 
 use crate::interfaces;
@@ -13,9 +13,9 @@ pub trait PacketReceiverOpts {
     /// set the socket to receive all of the multicast messages
     fn set_allmulti(&self, iface: &interfaces::NDInterface) -> Result<(), i32>;
     /// setup a packet filter (in-kernel) to drop the irrelavant packets
-    /// and only copy Neighbor Solicitation packets to userland
+    /// and copy only Neighbor Solicitation packets to userland
     ///
-    /// for Unix-like systems, classic BPF is used
+    /// for Unix-like systems, crate classic_bpf is used
     fn set_filter_pass_ipv6_ns(&self) -> Result<(), i32>;
 }
 
