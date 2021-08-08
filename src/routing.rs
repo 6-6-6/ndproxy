@@ -14,9 +14,8 @@ pub fn construst_routing_table(
     prelude: HashMap<Ipv6Net, SharedNSPacketSender>,
 ) -> IpLookupTable<Ipv6Addr, SharedNSPacketSender> {
     let mut ret = IpLookupTable::new();
-    prelude
-        .into_iter()
-        .map(|(key, value)| ret.insert(key.network(), key.prefix_len() as u32, value))
-        .count();
+    prelude.into_iter().for_each(|(key, value)| {
+        ret.insert(key.network(), key.prefix_len() as u32, value);
+    });
     ret
 }
