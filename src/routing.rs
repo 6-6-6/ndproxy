@@ -11,11 +11,12 @@ pub type SharedNSPacketReceiver = mpsc::UnboundedReceiver<SharedNSPacket>;
 
 /// create a routing table from a HashMap that stores route entries
 pub fn construst_routing_table(
-    mut prelude: HashMap<Ipv6Net, SharedNSPacketSender>,
+    prelude: HashMap<Ipv6Net, SharedNSPacketSender>,
 ) -> IpLookupTable<Ipv6Addr, SharedNSPacketSender> {
     let mut ret = IpLookupTable::new();
-    for (key, value) in prelude.drain() {
-        ret.insert(key.network(), key.prefix_len() as u32, value);
-    }
+    prelude
+        .into_iter()
+        .map(|(key, value)| ret.insert(key.network(), key.prefix_len() as u32, value))
+        .count();
     ret
 }
