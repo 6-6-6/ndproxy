@@ -32,17 +32,12 @@ pub const ADDRESS_NETMAP: u8 = 1;
 pub const ADDRESS_NPT: u8 = 2;
 
 impl NDConfig {
-    pub fn new(name: &str, config_table: HashMap<String, config::Value>) -> Self {
+    pub fn new(name: String, mut config_table: HashMap<String, config::Value>) -> Self {
         /*
          * there must be a field for "type",
          * so that we can decide the way to proxy Neighbor Discoverys
          */
-        let proxy_type_string = config_table
-            .get("type")
-            .unwrap()
-            .clone()
-            .into_str()
-            .unwrap();
+        let proxy_type_string = config_table.remove("type").unwrap().into_str().unwrap();
 
         let proxy_type: u8;
         if proxy_type_string == PROXY_FORWARD_STRING {
@@ -56,9 +51,8 @@ impl NDConfig {
          * to inform us which prefix is going to be proxied
          */
         let proxied_pfx: Ipv6Net = config_table
-            .get("proxied_prefix")
+            .remove("proxied_prefix")
             .unwrap()
-            .clone()
             .into_str()
             .unwrap()
             .parse()
@@ -69,19 +63,14 @@ impl NDConfig {
          * get the interfaces whose Neighbor Solicitations are proxied by me
          * if it is not specified, I will listen on all of the interfaces
          */
-        let proxied_ifaces = match config_table.get("proxied_ifaces") {
-            Some(v) => {
-                let mut ifaces = Vec::new();
-                match v.clone().into_array() {
-                    Ok(if_vec) => {
-                        for iface in if_vec.iter() {
-                            ifaces.push(iface.clone().into_str().unwrap());
-                        }
-                    }
-                    Err(_) => ifaces.push(v.clone().into_str().unwrap()),
-                }
-                ifaces
-            }
+        let proxied_ifaces = match config_table.remove("proxied_ifaces") {
+            Some(v) => match v.clone().into_array() {
+                Ok(if_vec) => if_vec
+                    .into_iter()
+                    .map(|iface| iface.into_str().unwrap())
+                    .collect(),
+                Err(_) => vec![v.into_str().unwrap()],
+            },
             None => vec![String::from("*")],
         };
 
@@ -89,19 +78,14 @@ impl NDConfig {
          * get the interfaces whose Neighbor Advertisements are proxied by me
          * if it is not specified, I will listen on all of the interfaces
          */
-        let forwarded_ifaces = match config_table.get("forwarded_ifaces") {
-            Some(v) => {
-                let mut ifaces = Vec::new();
-                match v.clone().into_array() {
-                    Ok(if_vec) => {
-                        for iface in if_vec.iter() {
-                            ifaces.push(iface.clone().into_str().unwrap());
-                        }
-                    }
-                    Err(_) => ifaces.push(v.clone().into_str().unwrap()),
-                }
-                ifaces
-            }
+        let forwarded_ifaces = match config_table.remove("forwarded_ifaces") {
+            Some(v) => match v.clone().into_array() {
+                Ok(if_vec) => if_vec
+                    .into_iter()
+                    .map(|iface| iface.into_str().unwrap())
+                    .collect(),
+                Err(_) => vec![v.into_str().unwrap()],
+            },
             None => vec![String::from("*")],
         };
 
@@ -122,13 +106,12 @@ impl NDConfig {
          */
         let dst_pfx: Ipv6Net;
         let address_mangling: u8;
-        match config_table.get("rewrite_method") {
+        match config_table.remove("rewrite_method") {
             Some(v) => {
-                let how_to_mangle = v.clone().into_str().unwrap();
+                let how_to_mangle = v.into_str().unwrap();
                 dst_pfx = config_table
-                    .get("local_prefix")
+                    .remove("local_prefix")
                     .unwrap()
-                    .clone()
                     .into_str()
                     .unwrap()
                     .parse()
@@ -148,7 +131,7 @@ impl NDConfig {
         }
 
         NDConfig {
-            name: name.to_string(),
+            name,
             proxy_type,
             proxied_pfx,
             proxied_ifaces,
@@ -163,17 +146,18 @@ impl NDConfig {
 ///
 /// Note that there MUST be a master section called "ndp"
 pub fn parse_config(cfile: &str) -> Vec<NDConfig> {
-    let mut ret = Vec::new();
     let mut myconfig = config::Config::new();
 
     myconfig.merge(config::File::with_name(cfile)).unwrap();
 
     // TODO: magic word: ndp
     // is it necessary?
-    for (key, value) in myconfig.get_table("ndp").unwrap().iter() {
-        ret.push(NDConfig::new(key, value.clone().into_table().unwrap()));
-    }
-    ret
+    myconfig
+        .get_table("ndp")
+        .unwrap()
+        .into_iter()
+        .map(|(key, value)| NDConfig::new(key, value.into_table().unwrap()))
+        .collect()
 }
 
 #[test]

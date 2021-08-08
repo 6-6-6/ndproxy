@@ -10,8 +10,9 @@ use pnet::util::MacAddr;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::collections::HashMap;
 use std::net::{Ipv6Addr, SocketAddrV6};
+use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 use ttl_cache::TtlCache;
 
 /// proxy for Neighbor Discovery requests
@@ -35,16 +36,13 @@ pub struct NDProxy {
     mpsc_sender: Option<SharedNSPacketSender>,
     pkt_sender: Socket,
     na_flag: u8,
-    // TODO: an Rc<Lock<Neighbors>> would be better,
-    // because the ipv6 neighbors of the system could be shared across threads, since it is a global state
-    // share the value would help reduce the communication with the kernel
-    neighbors: Neighbors,
+    neighbors: Arc<Mutex<Neighbors>>,
     upstream_ifs: HashMap<u32, NDInterface>,
     downstream_ifs: HashMap<u32, NDInterface>,
 }
 
 impl NDProxy {
-    pub fn new(config: NDConfig) -> Option<Self> {
+    pub fn new(config: NDConfig, neighbors: Arc<Mutex<Neighbors>>) -> Option<Self> {
         let proxied_prefix = *config.get_proxied_pfx();
         let proxy_type = *config.get_proxy_type();
         let address_mangling = *config.get_address_mangling();
@@ -82,7 +80,7 @@ impl NDProxy {
             mpsc_sender: Some(mpsc_sender),
             pkt_sender,
             na_flag: 0,
-            neighbors: Neighbors::new(),
+            neighbors,
             upstream_ifs,
             downstream_ifs,
         })
@@ -266,6 +264,8 @@ impl NDProxy {
         // update local cache
         match self
             .neighbors
+            .lock()
+            .await
             .check_whehter_entry_exists(&rewrited_addr)
             .await
         {
