@@ -1,0 +1,12 @@
+[Unit]
+Description=Proxies NDP packets among interfaces.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Restart=always
+RestartSec=3
+ExecStart=/usr/bin/ndproxy -c /etc/ndproxy.toml
+
+[Install]
+WantedBy=multi-user.target

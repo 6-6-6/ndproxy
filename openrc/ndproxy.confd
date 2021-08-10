@@ -1,0 +1,4 @@
+# log level
+NDPROXY_RUST_LOG="ndproxy=warn"
+# path to the config file
+NDPROXY_CONFIG="/etc/ndproxy.toml"

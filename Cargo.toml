@@ -1,11 +1,12 @@
 [package]
 name = "ndproxy"
-version = "0.2.1-dev"
+version = "0.2.2"
 authors = ["Zhang Zongyu <zongyu@novazy.net>"]
 edition = "2018"
 license = "MIT"
 repository = "https://github.com/6-6-6/ndproxy"
 homepage = "https://github.com/6-6-6/ndproxy"
+description = "Proxies NDP packets among interfaces."
 readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
