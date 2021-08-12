@@ -1,11 +1,10 @@
 use ipnet::Ipv6Net;
 use std::collections::HashMap;
 use std::net::Ipv6Addr;
-use std::sync::Arc;
 use tokio::sync::mpsc;
 use treebitmap::IpLookupTable;
 
-pub type SharedNSPacket = (u32, Arc<Ipv6Addr>, Arc<Vec<u8>>);
+pub type SharedNSPacket = (u32, Box<Ipv6Addr>, Box<Vec<u8>>);
 pub type SharedNSPacketSender = mpsc::UnboundedSender<SharedNSPacket>;
 pub type SharedNSPacketReceiver = mpsc::UnboundedReceiver<SharedNSPacket>;
 

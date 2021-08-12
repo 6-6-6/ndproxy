@@ -1,5 +1,5 @@
 [Unit]
-Description=Proxies NDP packets among interfaces.
+Description=Proxying Neighbor Discovery packets among interfaces.
 After=network-online.target
 Wants=network-online.target
 

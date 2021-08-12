@@ -3,7 +3,7 @@
 # Distributed under the terms of the GNU General Public License v2
 
 name="${RC_SVCNAME} daemon"
-description="Proxies NDP packets among interfaces."
+description="Proxying Neighbor Discovery packets among interfaces."
 command="/usr/bin/ndproxy"
 command_args="-c ${NDPROXY_CONFIG}"
 supervisor=supervise-daemon

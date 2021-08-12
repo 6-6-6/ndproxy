@@ -3,7 +3,6 @@ use crate::interfaces::NDInterface;
 use crate::routing::SharedNSPacketSender;
 use log::{error, trace, warn};
 use std::net::Ipv6Addr;
-use std::sync::Arc;
 use treebitmap::IpLookupTable;
 
 /// monitors for Neighbor Solicitation
@@ -60,10 +59,10 @@ impl NSMonitor {
             if packet.len() < 64 {
                 continue;
             };
-            let shared_packet = Arc::new(packet);
+            let shared_packet = Box::new(packet);
             // call construct_v6addr_unchecked() instead of construct the whole pkt into NeighborSolicitionPacket
             let tgt_addr = unsafe {
-                Arc::new(address_translation::construct_v6addr_unchecked(
+                Box::new(address_translation::construct_v6addr_unchecked(
                     &shared_packet[48..64],
                 ))
             };
