@@ -78,8 +78,8 @@ pub fn get_ifaces_with_name(names: &[String]) -> HashMap<u32, NDInterface> {
 pub fn get_ifaces_defined_by_config(
     ndconf: &conf::NDConfig,
 ) -> (HashMap<u32, NDInterface>, HashMap<u32, NDInterface>) {
-    let proxied_ifaces = get_ifaces_with_name(&ndconf.get_proxied_ifaces());
-    let forwarded_ifaces = get_ifaces_with_name(&ndconf.get_forwarded_ifaces());
+    let proxied_ifaces = get_ifaces_with_name(ndconf.get_proxied_ifaces());
+    let forwarded_ifaces = get_ifaces_with_name(ndconf.get_forwarded_ifaces());
     (proxied_ifaces, forwarded_ifaces)
 }
 

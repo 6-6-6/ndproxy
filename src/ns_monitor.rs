@@ -1,9 +1,9 @@
 use crate::datalink::{PacketReceiver, PacketReceiverOpts};
 use crate::interfaces::NDInterface;
 use crate::routing::SharedNSPacketSender;
+use ip_network_table_deps_treebitmap::IpLookupTable;
 use log::{error, trace, warn};
 use std::net::Ipv6Addr;
-use treebitmap::IpLookupTable;
 
 /// monitors for Neighbor Solicitation
 /// the received packet will be sent to the corresponding NDProxy via mpsc
@@ -55,7 +55,7 @@ impl NSMonitor {
     /// main loop: receive NS packet and forward it to related consumer
     pub fn run(mut self) -> Result<(), ()> {
         warn!("NSMonitor for {}: Start to work", self.iface.get_name());
-        while let Some(packet) = self.inner.next() {
+        for packet in self.inner.by_ref() {
             if packet.len() < 64 {
                 continue;
             };

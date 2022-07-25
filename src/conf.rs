@@ -39,12 +39,11 @@ impl NDConfig {
          */
         let proxy_type_string = config_table.remove("type").unwrap().into_str().unwrap();
 
-        let proxy_type: u8;
-        if proxy_type_string == PROXY_FORWARD_STRING {
-            proxy_type = PROXY_FORWARD;
+        let proxy_type = if proxy_type_string == PROXY_FORWARD_STRING {
+            PROXY_FORWARD
         } else {
-            proxy_type = PROXY_STATIC;
-        }
+            PROXY_STATIC
+        };
 
         /*
          * there must be a field for "proxied_prefix",
