@@ -1,0 +1,13 @@
+Source: ndproxy
+Section: net
+Priority: optional
+Maintainer: Zhang Zongyu <zongyu@novazy.net>
+Uploaders: Zhang Zongyu <zongyu@novazy.net>
+Standards-Version: 4.6.2
+Vcs-Browser: https://www.github.com/6-6-6/ndproxy
+Vcs-Git: https://www.github.com/6-6-6/ndproxy
+Homepage: https://www.github.com/6-6-6/ndproxy
+
+Package: ndproxy
+Architecture: linux-any
+Description: An (incomplete) implementation of RFC 4861 section 7.2.8 -- with some extra recipes.
