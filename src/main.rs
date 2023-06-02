@@ -1,5 +1,6 @@
 mod conf;
 mod datalink;
+mod error;
 mod interfaces;
 mod nd_proxy;
 mod neighbors;
@@ -17,7 +18,7 @@ use tokio::sync::Mutex;
 use tokio::task::spawn_blocking;
 
 #[tokio::main]
-async fn main() -> Result<(), ()> {
+async fn main() -> Result<(), error::Error> {
     pretty_env_logger::init();
 
     let mut config_filename = String::from("./ndproxy.toml");
@@ -34,7 +35,7 @@ async fn main() -> Result<(), ()> {
     }
 
     // parse the config file
-    let myconf = conf::parse_config(&config_filename);
+    let myconf = conf::parse_config(&config_filename)?;
 
     //
     let mut monitored_ifaces = HashMap::new();
