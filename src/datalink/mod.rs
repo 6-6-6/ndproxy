@@ -39,7 +39,7 @@ impl Iterator for PacketReceiver {
     fn next(&mut self) -> Option<Vec<u8>> {
         let len = self.socket.recv(&mut self.buf).unwrap();
         Some(
-            self.buf[0..len as usize]
+            self.buf[0..len]
                 .iter()
                 .map(|x| unsafe { x.assume_init() })
                 .collect(),

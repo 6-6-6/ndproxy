@@ -57,9 +57,7 @@ async fn main() -> Result<(), error::Error> {
     }
 
     // prepare monitors for Neighbor Solicitations
-    let nsmonitors: Vec<_> = monitored_ifaces
-        .into_iter()
-        .map(|(_, iface)| NSMonitor::new(construst_routing_table(route_map.clone()), iface))
+    let nsmonitors: Vec<_> = monitored_ifaces.into_values().map(|iface| NSMonitor::new(construst_routing_table(route_map.clone()), iface))
         .into_iter()
         .map(|inst| spawn_blocking(move || inst.unwrap().run()))
         .collect();
