@@ -1,7 +1,7 @@
 use crate::types::*;
 use ip_network_table_deps_treebitmap::IpLookupTable;
 use ipnet::Ipv6Net;
-use std::{net::Ipv6Addr, collections::HashMap};
+use std::{collections::HashMap, net::Ipv6Addr};
 
 /// create a routing table from a HashMap that stores route entries
 pub fn construst_routing_table(
