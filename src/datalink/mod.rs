@@ -21,6 +21,7 @@ pub trait PacketReceiverOpts {
     fn set_filter_pass_ipv6_na(&self) -> Result<(), error::Error>;
 }
 
+/// TODO: async it
 /// wrapper for socket::Socket
 pub struct PacketReceiver {
     socket: Socket,

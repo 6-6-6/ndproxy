@@ -26,8 +26,15 @@ struct Args {
     /// path to config file
     #[arg(short, long, default_value = "/etc/ndproxy.toml")]
     config: String,
-    /// 
-    just_monitor_it: Option<String>,
+    ///
+    #[arg(long)]
+    monitor_this_interface: Option<String>,
+    ///
+    #[arg(long)]
+    send_pkt_to_this_interface: Option<String>,
+    ///
+    #[arg(long)]
+    send_pkt_for_this_addr: Option<String>,
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -36,6 +43,7 @@ struct Args {
 enum Commands {
     Nsmonitor,
     Namonitor,
+    Nssender,
 }
 
 
@@ -48,10 +56,13 @@ async fn main() -> Result<(), error::Error> {
 
     match &args.command {
         Some(Commands::Namonitor) => {
-            dev::NAMonitor::new(&[args.just_monitor_it.unwrap()]).unwrap().run()
+            dev::NAMonitor::new(&[args.monitor_this_interface.unwrap()]).unwrap().run()
         }
         Some(Commands::Nsmonitor) => {
-            dev::nsmonitor(&[args.just_monitor_it.unwrap()]).await
+            dev::nsmonitor(&[args.monitor_this_interface.unwrap()]).await
+        }
+        Some(Commands::Nssender) => {
+            dev::send_ns_to(&[args.send_pkt_to_this_interface.unwrap()], args.send_pkt_for_this_addr.unwrap().parse().unwrap()).await
         }
         None => {
             ndproxy_main(args.config).await
