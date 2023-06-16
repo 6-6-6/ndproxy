@@ -1,6 +1,6 @@
 use crate::datalink::{PacketReceiver, PacketReceiverOpts};
 use crate::error;
-use crate::interfaces::{NDInterface, self};
+use crate::interfaces::{self, NDInterface};
 use log::{error, warn};
 
 /// monitors for Neighbor Solicitation
@@ -17,7 +17,9 @@ pub struct NAMonitor {
 impl NAMonitor {
     pub fn new(iface_names: &[String]) -> Option<Self> {
         //
-        let tmp: Vec<NDInterface> = interfaces::get_ifaces_with_name(iface_names).into_values().collect();
+        let tmp: Vec<NDInterface> = interfaces::get_ifaces_with_name(iface_names)
+            .into_values()
+            .collect();
         let iface: NDInterface = tmp[0].clone();
         //
         let inner = PacketReceiver::new();
@@ -41,10 +43,7 @@ impl NAMonitor {
             );
             return None;
         };
-        Some(Self {
-            inner,
-            iface,
-        })
+        Some(Self { inner, iface })
     }
 
     /// main loop: receive NS packet and forward it to related consumer
@@ -74,7 +73,6 @@ impl NAMonitor {
                     tgt_addr,
                 );
             }
-
         }
         Ok(())
     }

@@ -1,10 +1,10 @@
 use std::net::Ipv6Addr;
 use std::net::SocketAddrV6;
 
-use crate::interfaces::NDInterface;
-use crate::packets;
 use crate::error;
 use crate::interfaces;
+use crate::interfaces::NDInterface;
+use crate::packets;
 use pnet::packet::Packet;
 use socket2::Domain;
 use socket2::Protocol;
@@ -17,7 +17,9 @@ pub async fn send_na_to(
     proxied_na_addr: Ipv6Addr,
 ) -> Result<(), error::Error> {
     //
-    let tmp: Vec<NDInterface> = interfaces::get_ifaces_with_name(iface_names).into_values().collect();
+    let tmp: Vec<NDInterface> = interfaces::get_ifaces_with_name(iface_names)
+        .into_values()
+        .collect();
     let iface: NDInterface = tmp[0].clone();
     //
     let pkt_sender = match Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::ICMPV6)) {
@@ -38,14 +40,17 @@ pub async fn send_na_to(
         &dst_addr,
         &proxied_na_addr,
         iface.get_hwaddr(),
-        0
-    ).unwrap();
+        0,
+    )
+    .unwrap();
 
     // send the packet via send_to()
-    pkt_sender.send_to(
-        na_pkt.packet(),
-        &SocketAddrV6::new(dst_addr, 0, 0, *iface.get_scope_id()).into(),
-    ).unwrap();
+    pkt_sender
+        .send_to(
+            na_pkt.packet(),
+            &SocketAddrV6::new(dst_addr, 0, 0, *iface.get_scope_id()).into(),
+        )
+        .unwrap();
 
     Ok(())
 }

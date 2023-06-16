@@ -2,8 +2,8 @@
 mod linux;
 pub use linux::*;
 
-use crate::interfaces;
 use crate::error;
+use crate::interfaces;
 use socket2::{Domain, Protocol, Socket, Type};
 
 use std::mem::MaybeUninit;

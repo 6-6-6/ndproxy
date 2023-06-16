@@ -79,7 +79,7 @@ pub fn generate_NS_trick<'a, 'b>(
 }
 
 /// taking over the process of Neighbor Discovery myself
-/// 
+///
 /// original_packet: the original NS packet
 /// src_addr: my src addr
 /// src_addr: the dst addr (could be multicast addr or the solicited_addr)
