@@ -44,6 +44,7 @@ enum Commands {
     Nsmonitor,
     Namonitor,
     Nssender,
+    Nasender,
 }
 
 
@@ -63,6 +64,9 @@ async fn main() -> Result<(), error::Error> {
         }
         Some(Commands::Nssender) => {
             dev::send_ns_to(&[args.send_pkt_to_this_interface.unwrap()], args.send_pkt_for_this_addr.unwrap().parse().unwrap()).await
+        }
+        Some(Commands::Nasender) => {
+            dev::send_na_to(&[args.send_pkt_to_this_interface.unwrap()], args.send_pkt_for_this_addr.unwrap().parse().unwrap()).await
         }
         None => {
             ndproxy_main(args.config).await
