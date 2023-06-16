@@ -73,4 +73,5 @@ impl PacketReceiverOpts for PacketReceiver {
 
         ipv6_socket_fprog.attach_filter(self.socket.as_raw_fd())
     }
+
 }
