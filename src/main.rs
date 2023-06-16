@@ -12,7 +12,7 @@ mod types;
 use crate::na_monitor::NAMonitor;
 use crate::ns_monitor::NSMonitor;
 use crate::routing::construst_routing_table;
-use futures::future::{select_all, FutureExt};
+use futures::future::{select, select_all, FutureExt};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -126,31 +126,23 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
     }
 
     // prepare monitors for Neighbor Solicitations
-    let nsmonitors: Vec<_> = monitored_ns_ifaces
+    let mut monitors: Vec<_> = monitored_ns_ifaces
         .into_values()
         .map(|iface| NSMonitor::new(construst_routing_table(route_map.clone()), iface))
-        .into_iter()
         .map(|inst| spawn_blocking(move || inst.unwrap().run()))
         .collect();
 
     // prepare monitors for Neighbor Advertisements
-    let namonitors: Vec<_> = monitored_na_ifaces
+    let namonitors = monitored_na_ifaces
         .into_values()
         .map(|iface| NAMonitor::new(iface, neighbors_cache.clone()))
-        .into_iter()
-        .map(|inst| spawn_blocking(move || inst.unwrap().run()))
-        .collect();
+        .map(|inst| spawn_blocking(move || inst.unwrap().run()));
 
     // because route_map contains mpsc::Sender, I will drop it to make these Senders unavailable
     drop(route_map);
-    // drop not using Arcs
-    drop(neighbors_cache);
 
+    monitors.extend(namonitors);
     // main loop
-    let _a = tokio::join!(
-        select_all(ndproxies),
-        select_all(namonitors),
-        select_all(nsmonitors)
-    );
+    let a = select(select_all(ndproxies), select_all(monitors)).await;
     Ok(())
 }
