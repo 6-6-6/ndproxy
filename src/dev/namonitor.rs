@@ -14,5 +14,5 @@ pub async fn namonitor(iface_names: &[String]) -> Result<(), Error> {
     //
     let neighbors_cache = Arc::new(Mutex::new(TtlCache::new(256)));
     //
-    NAMonitor::new(iface, neighbors_cache)?.run().await
+    NAMonitor::new(iface, neighbors_cache)?.run()
 }

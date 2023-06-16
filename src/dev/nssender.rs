@@ -38,7 +38,7 @@ pub async fn send_ns_to(iface_names: &[String], ns_addr: Ipv6Addr) -> Result<(),
         iface.get_link_addr(),
         &Ipv6Addr::UNSPECIFIED,
         &ns_addr,
-        iface.get_hwaddr(),
+        Some(iface.get_hwaddr()),
     )
     .unwrap();
     // send the packet via send_to()
@@ -59,7 +59,7 @@ pub async fn send_ns_to(iface_names: &[String], ns_addr: Ipv6Addr) -> Result<(),
         iface.get_link_addr(),
         &ns_addr,
         &ns_addr,
-        iface.get_hwaddr(),
+        Some(iface.get_hwaddr()),
     )
     .unwrap();
     // send the packet via send_to()

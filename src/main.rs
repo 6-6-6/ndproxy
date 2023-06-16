@@ -115,7 +115,7 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
         .into_values()
         .map(|iface| NAMonitor::new(iface, neighbors_cache.clone()))
         .into_iter()
-        .map(|inst| spawn_blocking(move || async { inst.unwrap().run().await }))
+        .map(|inst| spawn_blocking(move || inst.unwrap().run()))
         .collect();
 
     // because route_map contains mpsc::Sender, I will drop it to make these Senders unavailable

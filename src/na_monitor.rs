@@ -32,7 +32,7 @@ impl NAMonitor {
     }
 
     /// main loop: receive NS packet and forward it to related consumer
-    pub async fn run(mut self) -> Result<(), error::Error> {
+    pub fn run(mut self) -> Result<(), error::Error> {
         warn!("NAMonitor for {}: Start to work", self.iface.get_name());
         for packet in self.inner.by_ref() {
             if packet.len() < 64 {
@@ -59,10 +59,10 @@ impl NAMonitor {
             }
             // update ttl cache
             self.neighbors_cache
-                .lock()
-                .await
+                .blocking_lock()
                 .insert(*tgt_addr, true, conf::TTL_OF_CACHE);
         }
+
         Ok(())
     }
 }
