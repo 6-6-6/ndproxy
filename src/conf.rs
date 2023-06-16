@@ -1,5 +1,6 @@
+use crate::error::Error;
 use ipnet::Ipv6Net;
-use std::collections::HashMap;
+use std::time::Duration;
 
 #[derive(getset::Getters, Debug, std::cmp::PartialEq, Clone)]
 pub struct NDConfig {
@@ -31,13 +32,17 @@ pub const ADDRESS_NOCHANGE: u8 = 0;
 pub const ADDRESS_NETMAP: u8 = 1;
 pub const ADDRESS_NPT: u8 = 2;
 
+// TODO: magic number or set it in config file?
+pub const TTL_OF_CACHE: Duration = Duration::from_secs(600);
+
 impl NDConfig {
-    pub fn new(name: String, mut config_table: HashMap<String, config::Value>) -> Self {
+    pub fn new(name: String, value: config::Value) -> Result<Self, Error> {
+        let mut config_table = value.into_table()?;
         /*
          * there must be a field for "type",
          * so that we can decide the way to proxy Neighbor Discoverys
          */
-        let proxy_type_string = config_table.remove("type").unwrap().into_str().unwrap();
+        let proxy_type_string = config_table.remove("type").unwrap().into_string()?;
 
         let proxy_type = if proxy_type_string == PROXY_FORWARD_STRING {
             PROXY_FORWARD
@@ -52,10 +57,8 @@ impl NDConfig {
         let proxied_pfx: Ipv6Net = config_table
             .remove("proxied_prefix")
             .unwrap()
-            .into_str()
-            .unwrap()
-            .parse()
-            .unwrap();
+            .into_string()?
+            .parse()?;
         // TODO: is it necessary to check the prefix length and address type?
 
         /*
@@ -66,9 +69,10 @@ impl NDConfig {
             Some(v) => match v.clone().into_array() {
                 Ok(if_vec) => if_vec
                     .into_iter()
-                    .map(|iface| iface.into_str().unwrap())
+                    // TODO: at leaset leave some messages here
+                    .map(|iface| iface.into_string().unwrap())
                     .collect(),
-                Err(_) => vec![v.into_str().unwrap()],
+                Err(_) => vec![v.into_string()?],
             },
             None => vec![String::from("*")],
         };
@@ -81,9 +85,10 @@ impl NDConfig {
             Some(v) => match v.clone().into_array() {
                 Ok(if_vec) => if_vec
                     .into_iter()
-                    .map(|iface| iface.into_str().unwrap())
+                    // TODO: at leaset leave some messages here
+                    .map(|iface| iface.into_string().unwrap())
                     .collect(),
-                Err(_) => vec![v.into_str().unwrap()],
+                Err(_) => vec![v.into_string()?],
             },
             None => vec![String::from("*")],
         };
@@ -107,14 +112,12 @@ impl NDConfig {
         let address_mangling: u8;
         match config_table.remove("rewrite_method") {
             Some(v) => {
-                let how_to_mangle = v.into_str().unwrap();
+                let how_to_mangle = v.into_string()?;
                 dst_pfx = config_table
                     .remove("local_prefix")
                     .unwrap()
-                    .into_str()
-                    .unwrap()
-                    .parse()
-                    .unwrap();
+                    .into_string()?
+                    .parse()?;
                 if how_to_mangle == ADDRESS_NETMAP_STRING {
                     address_mangling = ADDRESS_NETMAP;
                 } else if how_to_mangle == ADDRESS_NPT_STRING {
@@ -129,7 +132,7 @@ impl NDConfig {
             }
         }
 
-        NDConfig {
+        Ok(NDConfig {
             name,
             proxy_type,
             proxied_pfx,
@@ -137,33 +140,36 @@ impl NDConfig {
             forwarded_ifaces,
             address_mangling,
             dst_pfx,
-        }
+        })
     }
 }
 
 /// parse the toml configuration file, returns a vector of NDConfig
 ///
 /// Note that there MUST be a master section called "ndp"
-pub fn parse_config(cfile: &str) -> Vec<NDConfig> {
-    let mut myconfig = config::Config::new();
-
-    myconfig.merge(config::File::with_name(cfile)).unwrap();
+pub fn parse_config(cfile: &str) -> Result<Vec<NDConfig>, Error> {
+    let myconfig = config::Config::builder()
+        .add_source(config::File::with_name(cfile))
+        .build()?;
 
     // TODO: magic word: ndp
     // is it necessary?
-    myconfig
-        .get_table("ndp")
-        .unwrap()
+    let mut ret = Vec::new();
+    for item in myconfig
+        .get_table("ndp")?
         .into_iter()
-        .map(|(key, value)| NDConfig::new(key, value.into_table().unwrap()))
-        .collect()
+        .map(|(key, value)| NDConfig::new(key, value))
+    {
+        ret.push(item?)
+    }
+    Ok(ret)
 }
 
 #[test]
 fn test_config_parser() {
-    let config1 = parse_config("test/test1.toml").pop().unwrap();
-    let config2 = parse_config("test/test2.toml").pop().unwrap();
-    let config3 = parse_config("test/test3.toml").pop().unwrap();
+    let config1 = parse_config("test/test1.toml").unwrap().pop().unwrap();
+    let config2 = parse_config("test/test2.toml").unwrap().pop().unwrap();
+    let config3 = parse_config("test/test3.toml").unwrap().pop().unwrap();
 
     let result1 = NDConfig {
         name: "conf1".to_string(),

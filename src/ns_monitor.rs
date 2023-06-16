@@ -1,6 +1,7 @@
 use crate::datalink::{PacketReceiver, PacketReceiverOpts};
+use crate::error::Error;
 use crate::interfaces::NDInterface;
-use crate::routing::SharedNSPacketSender;
+use crate::types::SharedNSPacketSender;
 use ip_network_table_deps_treebitmap::IpLookupTable;
 use log::{error, trace, warn};
 use std::net::Ipv6Addr;
@@ -23,29 +24,13 @@ impl NSMonitor {
     pub fn new(
         routing_table: IpLookupTable<Ipv6Addr, SharedNSPacketSender>,
         iface: NDInterface,
-    ) -> Option<Self> {
+    ) -> Result<Self, Error> {
         let inner = PacketReceiver::new();
-        if let Err(e) = inner.bind_to_interface(&iface) {
-            error!("[{:?}] Failed to bind to interface {}", e, iface.get_name());
-            return None;
-        };
-        if let Err(e) = inner.set_allmulti(&iface) {
-            error!(
-                "[{:?}] Failed to set ALLMULTI on interface {}",
-                e,
-                iface.get_name()
-            );
-            return None;
-        };
-        if let Err(e) = inner.set_filter_pass_ipv6_ns() {
-            error!(
-                "[{:?}] Failed to attach BPF filter to interface {}",
-                e,
-                iface.get_name()
-            );
-            return None;
-        };
-        Some(Self {
+        inner.bind_to_interface(&iface)?;
+        inner.set_allmulti(&iface)?;
+        inner.set_filter_pass_ipv6_ns()?;
+
+        Ok(Self {
             inner,
             routing_table,
             iface,
@@ -53,7 +38,7 @@ impl NSMonitor {
     }
 
     /// main loop: receive NS packet and forward it to related consumer
-    pub fn run(mut self) -> Result<(), ()> {
+    pub fn run(mut self) -> Result<(), Error> {
         warn!("NSMonitor for {}: Start to work", self.iface.get_name());
         for packet in self.inner.by_ref() {
             if packet.len() < 64 {
@@ -96,7 +81,7 @@ impl NSMonitor {
                     error!("NSMonitor for {}: _{:?}_ Failed to send the packet to its corresponding proxy.",
                         self.iface.get_name(),
                         e);
-                    return Err(());
+                    return Err(Error::Mpsc(e));
                 };
             }
         }

@@ -2,6 +2,7 @@
 mod linux;
 pub use linux::*;
 
+use crate::error::Error;
 use crate::interfaces;
 use socket2::{Domain, Protocol, Socket, Type};
 
@@ -9,16 +10,18 @@ use std::mem::MaybeUninit;
 
 pub trait PacketReceiverOpts {
     /// bind the socket to a particular interface
-    fn bind_to_interface(&self, iface: &interfaces::NDInterface) -> Result<(), i32>;
+    fn bind_to_interface(&self, iface: &interfaces::NDInterface) -> Result<(), Error>;
     /// set the socket to receive all of the multicast messages
-    fn set_allmulti(&self, iface: &interfaces::NDInterface) -> Result<(), i32>;
+    fn set_allmulti(&self, iface: &interfaces::NDInterface) -> Result<(), Error>;
     /// setup a packet filter (in-kernel) to drop the irrelavant packets
     /// and copy only Neighbor Solicitation packets to userland
     ///
     /// for Unix-like systems, crate classic_bpf is used
-    fn set_filter_pass_ipv6_ns(&self) -> Result<(), i32>;
+    fn set_filter_pass_ipv6_ns(&self) -> Result<(), Error>;
+    fn set_filter_pass_ipv6_na(&self) -> Result<(), Error>;
 }
 
+/// TODO: async it
 /// wrapper for socket::Socket
 pub struct PacketReceiver {
     socket: Socket,
@@ -39,7 +42,7 @@ impl Iterator for PacketReceiver {
     fn next(&mut self) -> Option<Vec<u8>> {
         let len = self.socket.recv(&mut self.buf).unwrap();
         Some(
-            self.buf[0..len as usize]
+            self.buf[0..len]
                 .iter()
                 .map(|x| unsafe { x.assume_init() })
                 .collect(),
