@@ -7,32 +7,56 @@ mod neighbors;
 mod ns_monitor;
 mod packets;
 mod routing;
+mod dev;
 
 use crate::ns_monitor::NSMonitor;
 use crate::routing::construst_routing_table;
-use argparse::{ArgumentParser, Store};
 use futures::future::{select, select_all, FutureExt};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::spawn_blocking;
 
+use clap::{Parser, Subcommand};
+
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// path to config file
+    #[arg(short, long, default_value = "/etc/ndproxy.toml")]
+    config: String,
+    /// 
+    just_monitor_it: Option<String>,
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    Nsmonitor,
+}
+
+
 #[tokio::main]
 async fn main() -> Result<(), error::Error> {
     pretty_env_logger::init();
 
-    let mut config_filename = String::from("./ndproxy.toml");
-    {
-        // this block limits scope of borrows by ap.refer() method
-        let mut ap = ArgumentParser::new();
-        ap.set_description("proxies your neighbor discovery messages.");
-        ap.refer(&mut config_filename).add_option(
-            &["-c", "--conf"],
-            Store,
-            "The location of your config file. Default: ./npproxy.toml",
-        );
-        ap.parse_args_or_exit();
+    let args = Args::parse();
+
+
+    match &args.command {
+        Some(Commands::Nsmonitor) => {
+            dev::nsmonitor(&vec![args.just_monitor_it.unwrap()]).await
+        }
+        None => {
+            ndproxy_main(args.config).await
+        }
     }
+
+}
+
+async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
 
     // parse the config file
     let myconf = conf::parse_config(&config_filename)?;
