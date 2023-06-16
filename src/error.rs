@@ -1,5 +1,6 @@
 use crate::types::*;
 use thiserror::Error;
+use tokio::task::JoinError;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -15,4 +16,6 @@ pub enum Error {
     SocketOpt(SocketOptTypes),
     #[error("NA/NS packet generation error")]
     PacketGeneration(NDTypes),
+    #[error("tokio join error")]
+    JoinError(#[from] JoinError),
 }

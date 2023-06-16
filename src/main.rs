@@ -12,7 +12,7 @@ mod types;
 use crate::na_monitor::NAMonitor;
 use crate::ns_monitor::NSMonitor;
 use crate::routing::construst_routing_table;
-use futures::future::{select, select_all, FutureExt};
+use futures::future::{select, select_all, FutureExt, Either};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -112,12 +112,13 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
     // prepare proxies for proxied_prefixes
     let mut ndproxies = Vec::new();
     for conf in myconf.into_iter() {
-        // update the monitors interfaces
+        // update the monitors interfaces (by config)
         let (upstream_ifaces, downstream_ifaces) = interfaces::get_ifaces_defined_by_config(&conf);
         monitored_ns_ifaces.extend(upstream_ifaces);
         monitored_na_ifaces.extend(downstream_ifaces);
         //
         let mut proxy = nd_proxy::NDProxy::new(conf, neighbors_cache.clone()).unwrap();
+        // route prefix to its corresponding ndproxy
         route_map.insert(
             *proxy.get_proxied_prefix(),
             proxy.mpsc_sender_mut().take().unwrap(),
@@ -129,20 +130,24 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
     let mut monitors: Vec<_> = monitored_ns_ifaces
         .into_values()
         .map(|iface| NSMonitor::new(construst_routing_table(route_map.clone()), iface))
-        .map(|inst| spawn_blocking(move || inst.unwrap().run()))
+        .map(|inst| spawn_blocking(move || inst?.run()))
         .collect();
 
     // prepare monitors for Neighbor Advertisements
     let namonitors = monitored_na_ifaces
         .into_values()
         .map(|iface| NAMonitor::new(iface, neighbors_cache.clone()))
-        .map(|inst| spawn_blocking(move || inst.unwrap().run()));
+        .map(|inst| spawn_blocking(move || inst?.run()));
+    monitors.extend(namonitors);
 
     // because route_map contains mpsc::Sender, I will drop it to make these Senders unavailable
     drop(route_map);
-
-    monitors.extend(namonitors);
-    // main loop
-    let a = select(select_all(ndproxies), select_all(monitors)).await;
-    Ok(())
+    // drop unused Arc
+    drop(neighbors_cache);
+    
+    // main loop, if any task failed, return the Result and exit?
+    match select(select_all(ndproxies), select_all(monitors)).await {
+        Either::Left(((ret, _, _), _)) => ret,
+        Either::Right(((ret, _, _), _)) => ret?,
+    }
 }
