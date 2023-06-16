@@ -2,7 +2,7 @@
 mod linux;
 pub use linux::*;
 
-use crate::error;
+use crate::error::Error;
 use crate::interfaces;
 use socket2::{Domain, Protocol, Socket, Type};
 
@@ -10,15 +10,15 @@ use std::mem::MaybeUninit;
 
 pub trait PacketReceiverOpts {
     /// bind the socket to a particular interface
-    fn bind_to_interface(&self, iface: &interfaces::NDInterface) -> Result<(), error::Error>;
+    fn bind_to_interface(&self, iface: &interfaces::NDInterface) -> Result<(), Error>;
     /// set the socket to receive all of the multicast messages
-    fn set_allmulti(&self, iface: &interfaces::NDInterface) -> Result<(), error::Error>;
+    fn set_allmulti(&self, iface: &interfaces::NDInterface) -> Result<(), Error>;
     /// setup a packet filter (in-kernel) to drop the irrelavant packets
     /// and copy only Neighbor Solicitation packets to userland
     ///
     /// for Unix-like systems, crate classic_bpf is used
-    fn set_filter_pass_ipv6_ns(&self) -> Result<(), error::Error>;
-    fn set_filter_pass_ipv6_na(&self) -> Result<(), error::Error>;
+    fn set_filter_pass_ipv6_ns(&self) -> Result<(), Error>;
+    fn set_filter_pass_ipv6_na(&self) -> Result<(), Error>;
 }
 
 /// TODO: async it

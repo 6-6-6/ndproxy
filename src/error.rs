@@ -7,8 +7,10 @@ pub enum Error {
     IPNet(#[from] ipnet::AddrParseError),
     #[error("config error")]
     Config(#[from] config::ConfigError),
+    #[error("tokio mpsc error")]
+    Mpsc(#[from] tokio::sync::mpsc::error::SendError<SharedNSPacket>),
     #[error("std io errors")]
-    Io(()),
+    Io(#[from] std::io::Error),
     #[error("socketopt error")]
     SocketOpt(SocketOptTypes),
     #[error("NA/NS packet generation error")]

@@ -1,7 +1,7 @@
 use crate::conf::{NDConfig, ADDRESS_NETMAP, ADDRESS_NPT, PROXY_STATIC};
 use crate::interfaces::{get_ifaces_defined_by_config, NDInterface};
 use crate::types::*;
-use crate::{error, packets};
+use crate::{error::Error, packets};
 use ipnet::Ipv6Net;
 use log::{error, info, trace, warn};
 use pnet::packet::{icmpv6::ndp, Packet};
@@ -39,32 +39,22 @@ pub struct NDProxy {
 }
 
 impl NDProxy {
-    pub fn new(config: NDConfig, neighbors_cache: NeighborsCache) -> Option<Self> {
+    pub fn new(config: NDConfig, neighbors_cache: NeighborsCache) -> Result<Self, Error> {
         let proxied_prefix = *config.get_proxied_pfx();
         let proxy_type = *config.get_proxy_type();
         let address_mangling = *config.get_address_mangling();
         let rewrite_prefix = *config.get_dst_pfx();
         let (mpsc_sender, mpsc_receiver) = mpsc::unbounded_channel();
         let (upstream_ifs, downstream_ifs) = get_ifaces_defined_by_config(&config);
-        let pkt_sender = match Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::ICMPV6)) {
-            Ok(v) => v,
-            Err(_) => return None,
-        };
-        if let Err(e) = pkt_sender.set_multicast_hops_v6(255) {
-            error!(
-                "NDProxy for {}: [{:?}] Failed to set multicast hops to 255",
-                proxied_prefix, e
-            );
-            return None;
-        };
-        if let Err(e) = pkt_sender.set_unicast_hops_v6(255) {
-            error!(
-                "NDProxy for {}: [{:?}] Failed to set uniicast hops to 255",
-                proxied_prefix, e
-            );
-            return None;
-        };
-        Some(Self {
+        let pkt_sender = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::ICMPV6))?;
+        pkt_sender
+            .set_multicast_hops_v6(255)
+            .map_err(|_| Error::SocketOpt(SocketOptTypes::SetMultiHop))?;
+        pkt_sender
+            .set_unicast_hops_v6(255)
+            .map_err(|_| Error::SocketOpt(SocketOptTypes::SetUniHop))?;
+        // if everything goes as expected
+        Ok(Self {
             proxy_type,
             proxied_prefix,
             proxied_prefix_csum: address_translation::pfx_csum(&proxied_prefix),
@@ -81,7 +71,7 @@ impl NDProxy {
         })
     }
 
-    pub async fn run(mut self) -> Result<(), error::Error> {
+    pub async fn run(mut self) -> Result<(), Error> {
         drop(self.mpsc_sender.take());
         warn!("NDProxy for {}: Start to work.", self.proxied_prefix);
         match self.proxy_type {
@@ -90,7 +80,7 @@ impl NDProxy {
         }
     }
 
-    async fn run_static(mut self) -> Result<(), error::Error> {
+    async fn run_static(mut self) -> Result<(), Error> {
         while let Some((scope_id, tgt_addr, packet)) = self.mpsc_receiver.recv().await {
             let macaddr = match self.upstream_ifs.get(&scope_id) {
                 Some(iface) => iface.get_hwaddr(),
@@ -103,7 +93,7 @@ impl NDProxy {
         Ok(())
     }
 
-    async fn run_forward(mut self) -> Result<(), error::Error> {
+    async fn run_forward(mut self) -> Result<(), Error> {
         while let Some((scope_id, tgt_addr, packet)) = self.mpsc_receiver.recv().await {
             // TODO: unwrap or continue?
             let ns_packet = ndp::NeighborSolicitPacket::new(&packet[40..]).unwrap();
@@ -135,7 +125,7 @@ impl NDProxy {
         proxied_addr: Ipv6Addr,
         src_hwaddr: &MacAddr,
         scope_id: u32,
-    ) -> Result<(), error::Error> {
+    ) -> Result<(), Error> {
         info!(
             "NDProxy for {}: Send NA for {} to {} on interface {}",
             self.proxied_prefix,
@@ -157,7 +147,7 @@ impl NDProxy {
                     "NDProxy for {}: Failed to generate Neighbor Advertisement packet.",
                     self.proxied_prefix,
                 );
-                return Err(error::Error::PacketGeneration(NDTypes::NeighborAdv));
+                return Err(Error::PacketGeneration(NDTypes::NeighborAdv));
             }
         };
         // send the packet via send_to()
@@ -173,7 +163,7 @@ impl NDProxy {
                     e,
                     self.upstream_ifs.get(&scope_id).unwrap().get_name()
                 );
-                Err(error::Error::Io(()))
+                Err(Error::Io(e))
             }
         }
     }
@@ -184,7 +174,7 @@ impl NDProxy {
         proxied_addr: Ipv6Addr,
         origin_scope_id: u32,
         original_packet: ndp::NeighborSolicitPacket<'_>,
-    ) -> Result<(), error::Error> {
+    ) -> Result<(), Error> {
         // rewrite the target address if needed
         let rewrited_addr = match self.address_mangling {
             ADDRESS_NETMAP => address_translation::netmapv6(proxied_addr, &self.rewrite_prefix),
@@ -208,7 +198,7 @@ impl NDProxy {
                     "NDProxy for {}: Failed to generate ICMPv6 packet.",
                     self.proxied_prefix,
                 );
-                return Err(error::Error::PacketGeneration(NDTypes::NeighborSol));
+                return Err(Error::PacketGeneration(NDTypes::NeighborSol));
             }
         };
         // logging
@@ -232,7 +222,7 @@ impl NDProxy {
                     e,
                     self.downstream_ifs.get(id).unwrap().get_name(),
                 );
-                return Err(error::Error::Io(()));
+                return Err(Error::Io(e));
             };
         }
         Ok(())

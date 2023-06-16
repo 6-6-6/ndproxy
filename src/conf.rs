@@ -1,4 +1,4 @@
-use crate::error;
+use crate::error::Error;
 use ipnet::Ipv6Net;
 use std::time::Duration;
 
@@ -36,7 +36,7 @@ pub const ADDRESS_NPT: u8 = 2;
 pub const TTL_OF_CACHE: Duration = Duration::from_secs(600);
 
 impl NDConfig {
-    pub fn new(name: String, value: config::Value) -> Result<Self, error::Error> {
+    pub fn new(name: String, value: config::Value) -> Result<Self, Error> {
         let mut config_table = value.into_table()?;
         /*
          * there must be a field for "type",
@@ -147,7 +147,7 @@ impl NDConfig {
 /// parse the toml configuration file, returns a vector of NDConfig
 ///
 /// Note that there MUST be a master section called "ndp"
-pub fn parse_config(cfile: &str) -> Result<Vec<NDConfig>, error::Error> {
+pub fn parse_config(cfile: &str) -> Result<Vec<NDConfig>, Error> {
     let myconfig = config::Config::builder()
         .add_source(config::File::with_name(cfile))
         .build()?;

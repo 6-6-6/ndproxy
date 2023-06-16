@@ -1,5 +1,5 @@
 use crate::datalink::{PacketReceiver, PacketReceiverOpts};
-use crate::error;
+use crate::error::Error;
 use crate::interfaces;
 use crate::types::SocketOptTypes;
 use classic_bpf::*;
@@ -8,7 +8,7 @@ use std::mem::size_of;
 use std::os::unix::io::AsRawFd;
 
 impl PacketReceiverOpts for PacketReceiver {
-    fn bind_to_interface(&self, iface: &interfaces::NDInterface) -> Result<(), error::Error> {
+    fn bind_to_interface(&self, iface: &interfaces::NDInterface) -> Result<(), Error> {
         let socket_for_iface = libc::sockaddr_ll {
             sll_family: libc::PF_PACKET as u16,
             sll_protocol: (libc::ETH_P_IPV6 as u16).to_be(),
@@ -27,11 +27,11 @@ impl PacketReceiverOpts for PacketReceiver {
             )
         } {
             0 => Ok(()),
-            _errno => Err(error::Error::SocketOpt(SocketOptTypes::BindToIface)),
+            _errno => Err(Error::SocketOpt(SocketOptTypes::BindToIface)),
         }
     }
 
-    fn set_allmulti(&self, iface: &interfaces::NDInterface) -> Result<(), error::Error> {
+    fn set_allmulti(&self, iface: &interfaces::NDInterface) -> Result<(), Error> {
         let mut pmr: libc::packet_mreq = unsafe { std::mem::zeroed() };
         pmr.mr_ifindex = *iface.get_scope_id() as i32;
         pmr.mr_type = libc::PACKET_MR_ALLMULTI as u16;
@@ -46,11 +46,11 @@ impl PacketReceiverOpts for PacketReceiver {
             )
         } {
             0 => Ok(()),
-            _errno => Err(error::Error::SocketOpt(SocketOptTypes::AllMulti)),
+            _errno => Err(Error::SocketOpt(SocketOptTypes::AllMulti)),
         }
     }
 
-    fn set_filter_pass_ipv6_ns(&self) -> Result<(), error::Error> {
+    fn set_filter_pass_ipv6_ns(&self) -> Result<(), Error> {
         let ipv6_ns_filter = [
             // offsetof(ipv6 header, ipv6 next header)
             BPFFilter::bpf_stmt((BPF_LD | BPF_B | BPF_ABS) as u16, 6),
@@ -75,10 +75,10 @@ impl PacketReceiverOpts for PacketReceiver {
 
         ipv6_socket_fprog
             .attach_filter(self.socket.as_raw_fd())
-            .map_err(|_| error::Error::SocketOpt(SocketOptTypes::AttachBPF))
+            .map_err(|_| Error::SocketOpt(SocketOptTypes::AttachBPF))
     }
 
-    fn set_filter_pass_ipv6_na(&self) -> Result<(), error::Error> {
+    fn set_filter_pass_ipv6_na(&self) -> Result<(), Error> {
         let ipv6_na_filter = [
             // offsetof(ipv6 header, ipv6 next header)
             BPFFilter::bpf_stmt((BPF_LD | BPF_B | BPF_ABS) as u16, 6),
@@ -103,6 +103,6 @@ impl PacketReceiverOpts for PacketReceiver {
 
         ipv6_socket_fprog
             .attach_filter(self.socket.as_raw_fd())
-            .map_err(|_| error::Error::SocketOpt(SocketOptTypes::AttachBPF))
+            .map_err(|_| Error::SocketOpt(SocketOptTypes::AttachBPF))
     }
 }

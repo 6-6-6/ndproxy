@@ -1,7 +1,7 @@
 use std::net::Ipv6Addr;
 use std::net::SocketAddrV6;
 
-use crate::error;
+use crate::error::Error;
 use crate::interfaces;
 use crate::interfaces::NDInterface;
 use crate::packets;
@@ -13,10 +13,7 @@ use socket2::Socket;
 use socket2::Type;
 
 /// construct a NA packet, and send it to the interface
-pub async fn send_na_to(
-    iface_names: &[String],
-    proxied_na_addr: Ipv6Addr,
-) -> Result<(), error::Error> {
+pub async fn send_na_to(iface_names: &[String], proxied_na_addr: Ipv6Addr) -> Result<(), Error> {
     //
     let tmp: Vec<NDInterface> = interfaces::get_ifaces_with_name(iface_names)
         .into_values()
@@ -25,7 +22,7 @@ pub async fn send_na_to(
     //
     let pkt_sender = match Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::ICMPV6)) {
         Ok(v) => v,
-        Err(_) => return Err(error::Error::SocketOpt(SocketOptTypes::SocketGeneration)),
+        Err(_) => return Err(Error::SocketOpt(SocketOptTypes::SocketGeneration)),
     };
 
     println!(

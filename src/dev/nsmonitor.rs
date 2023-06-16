@@ -1,5 +1,5 @@
 use crate::dev::recv_handler::mpsc_recv_and_drop;
-use crate::error;
+use crate::error::Error;
 use crate::interfaces;
 use crate::ns_monitor::NSMonitor;
 use crate::routing::construst_routing_table;
@@ -8,7 +8,7 @@ use ipnet::Ipv6Net;
 use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
 
-pub async fn nsmonitor(iface_names: &[String]) -> Result<(), error::Error> {
+pub async fn nsmonitor(iface_names: &[String]) -> Result<(), Error> {
     //
     let mut route_map = std::collections::HashMap::new();
     let monitored_ifaces = interfaces::get_ifaces_with_name(iface_names);

@@ -19,5 +19,7 @@ pub enum SocketOptTypes {
     AllMulti,
     AttachBPF,
     BindToIface,
+    SetMultiHop,
+    SetUniHop,
     SocketGeneration,
 }
