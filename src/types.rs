@@ -21,5 +21,6 @@ pub enum SocketOptTypes {
     BindToIface,
     SetMultiHop,
     SetUniHop,
+    #[cfg(feature = "dev")]
     SocketGeneration,
 }

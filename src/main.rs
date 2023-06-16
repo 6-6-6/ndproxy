@@ -1,6 +1,5 @@
 mod conf;
 mod datalink;
-mod dev;
 mod error;
 mod interfaces;
 mod na_monitor;
@@ -20,8 +19,31 @@ use tokio::sync::Mutex;
 use tokio::task::spawn_blocking;
 use ttl_cache::TtlCache;
 
-use clap::{Parser, Subcommand};
+use clap::Parser;
 
+#[cfg(not(feature = "dev"))]
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// path to config file
+    #[arg(short, long, default_value = "/etc/ndproxy.toml")]
+    config: String,
+}
+
+#[cfg(not(feature = "dev"))]
+#[tokio::main]
+async fn main() -> Result<(), error::Error> {
+    pretty_env_logger::init();
+    let args = Args::parse();
+    ndproxy_main(args.config).await
+}
+
+#[cfg(feature = "dev")]
+mod dev;
+#[cfg(feature = "dev")]
+use clap::Subcommand;
+
+#[cfg(feature = "dev")]
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -37,10 +59,12 @@ struct Args {
     ///
     #[arg(long)]
     send_pkt_for_this_addr: Option<String>,
+    ///
     #[command(subcommand)]
     command: Option<Commands>,
 }
 
+#[cfg(feature = "dev")]
 #[derive(Subcommand, Debug)]
 enum Commands {
     Nsmonitor,
@@ -49,12 +73,11 @@ enum Commands {
     Nasender,
 }
 
+#[cfg(feature = "dev")]
 #[tokio::main]
 async fn main() -> Result<(), error::Error> {
     pretty_env_logger::init();
-
     let args = Args::parse();
-
     match &args.command {
         Some(Commands::Namonitor) => dev::namonitor(&[args.monitor_this_interface.unwrap()]).await,
         Some(Commands::Nsmonitor) => dev::nsmonitor(&[args.monitor_this_interface.unwrap()]).await,

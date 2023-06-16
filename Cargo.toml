@@ -28,6 +28,9 @@ ttl_cache = "0.5.1"
 thiserror = "1.0.40"
 clap = { version = "4.3.4", features = ["derive"] }
 
+[features]
+dev = []
+
 [profile.release]
 codegen-units = 1
 lto = "fat"
