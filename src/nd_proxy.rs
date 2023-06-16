@@ -2,7 +2,7 @@ use crate::conf::{NDConfig, ADDRESS_NETMAP, ADDRESS_NPT, PROXY_STATIC};
 use crate::interfaces::{get_ifaces_defined_by_config, NDInterface};
 use crate::neighbors::Neighbors;
 use crate::packets;
-use crate::routing::{SharedNSPacketReceiver, SharedNSPacketSender};
+use crate::types::{SharedNSPacketReceiver, SharedNSPacketSender};
 use ipnet::Ipv6Net;
 use log::{error, info, trace, warn};
 use pnet::packet::{icmpv6::ndp, Packet};

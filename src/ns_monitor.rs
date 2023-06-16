@@ -1,6 +1,6 @@
 use crate::datalink::{PacketReceiver, PacketReceiverOpts};
 use crate::interfaces::NDInterface;
-use crate::routing::SharedNSPacketSender;
+use crate::types::SharedNSPacketSender;
 use ip_network_table_deps_treebitmap::IpLookupTable;
 use log::{error, trace, warn};
 use std::net::Ipv6Addr;

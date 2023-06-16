@@ -8,6 +8,7 @@ mod ns_monitor;
 mod packets;
 mod routing;
 mod dev;
+mod types;
 
 use crate::ns_monitor::NSMonitor;
 use crate::routing::construst_routing_table;
