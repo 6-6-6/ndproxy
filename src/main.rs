@@ -10,9 +10,10 @@ mod packets;
 mod routing;
 mod types;
 
+use crate::na_monitor::NAMonitor;
 use crate::ns_monitor::NSMonitor;
 use crate::routing::construst_routing_table;
-use futures::future::{select, select_all, FutureExt};
+use futures::future::{select_all, FutureExt};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -80,7 +81,8 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
     let myconf = conf::parse_config(&config_filename)?;
 
     //
-    let mut monitored_ifaces = HashMap::new();
+    let mut monitored_ns_ifaces = HashMap::new();
+    let mut monitored_na_ifaces = HashMap::new();
     let mut route_map = std::collections::HashMap::new();
     let neighbors_cache = Arc::new(Mutex::new(TtlCache::new(256)));
 
@@ -88,8 +90,9 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
     let mut ndproxies = Vec::new();
     for conf in myconf.into_iter() {
         // update the monitors interfaces
-        let (ifaces, _) = interfaces::get_ifaces_defined_by_config(&conf);
-        monitored_ifaces.extend(ifaces);
+        let (upstream_ifaces, downstream_ifaces) = interfaces::get_ifaces_defined_by_config(&conf);
+        monitored_ns_ifaces.extend(upstream_ifaces);
+        monitored_na_ifaces.extend(downstream_ifaces);
         //
         let mut proxy = nd_proxy::NDProxy::new(conf, neighbors_cache.clone()).unwrap();
         route_map.insert(
@@ -100,11 +103,19 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
     }
 
     // prepare monitors for Neighbor Solicitations
-    let nsmonitors: Vec<_> = monitored_ifaces
+    let nsmonitors: Vec<_> = monitored_ns_ifaces
         .into_values()
         .map(|iface| NSMonitor::new(construst_routing_table(route_map.clone()), iface))
         .into_iter()
         .map(|inst| spawn_blocking(move || inst.unwrap().run()))
+        .collect();
+
+    // prepare monitors for Neighbor Advertisements
+    let namonitors: Vec<_> = monitored_na_ifaces
+        .into_values()
+        .map(|iface| NAMonitor::new(iface, neighbors_cache.clone()))
+        .into_iter()
+        .map(|inst| spawn_blocking(move || async { inst.unwrap().run().await }))
         .collect();
 
     // because route_map contains mpsc::Sender, I will drop it to make these Senders unavailable
@@ -113,6 +124,10 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
     drop(neighbors_cache);
 
     // main loop
-    select(select_all(ndproxies), select_all(nsmonitors)).await;
+    let _a = tokio::join!(
+        select_all(ndproxies),
+        select_all(namonitors),
+        select_all(nsmonitors)
+    );
     Ok(())
 }
