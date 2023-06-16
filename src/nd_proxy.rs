@@ -186,13 +186,8 @@ impl NDProxy {
                 continue;
             };
 
-            // TODO: move to addres_translation
-            let octs = rewrited_addr.octets();
-            let ns_multicast_addr = address_translation::construct_v6addr(&[
-                0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xff,
-                octs[13], octs[14], octs[15],
-            ])
-            .unwrap();
+            let ns_multicast_addr =
+                address_translation::gen_solicited_node_multicast_address(&rewrited_addr);
             // construct a packet whose target is the target address
             let ns_packet2 = packets::generate_NS_packet(
                 iface.get_link_addr(),
