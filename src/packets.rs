@@ -4,6 +4,9 @@ use pnet::packet::Packet;
 use pnet::util::MacAddr;
 use std::net::Ipv6Addr;
 
+use crate::error::Error;
+use crate::types::*;
+
 /// generate a Neighbor Advertisement packet, necessary information should be provided
 #[allow(non_snake_case)]
 pub fn generate_NA_forwarded<'a>(
@@ -12,12 +15,10 @@ pub fn generate_NA_forwarded<'a>(
     proxied_addr: &Ipv6Addr,
     src_hwaddr: &MacAddr,
     flag: u8,
-) -> Option<ndp::NeighborAdvertPacket<'a>> {
+) -> Result<ndp::NeighborAdvertPacket<'a>, Error> {
     let pkt_buf: Vec<u8> = vec![0; 32];
-    let mut ret = match ndp::MutableNeighborAdvertPacket::owned(pkt_buf) {
-        Some(v) => v,
-        None => return None,
-    };
+    let mut ret = ndp::MutableNeighborAdvertPacket::owned(pkt_buf)
+        .ok_or(Error::PacketGeneration(NDTypes::NeighborAdv))?;
     // basic info
     ret.set_icmpv6_type(Icmpv6Types::NeighborAdvert);
     // set the to-be-announced addr
@@ -42,38 +43,34 @@ pub fn generate_NA_forwarded<'a>(
     );
     ret.set_checksum(csum);
 
-    Some(ret.consume_to_immutable())
+    Ok(ret.consume_to_immutable())
 }
 
 /// taking over the process of Neighbor Discovery myself
 ///
-/// original_packet: the original NS packet
 /// src_addr: my src addr
 /// src_addr: the dst addr (could be multicast addr or the solicited_addr)
 /// solicited_addr: the addr I am soliciting
 /// src_hwaddr: the hwaddr of the interface
 #[allow(non_snake_case)]
-pub fn generate_NS_packet<'a, 'b>(
-    original_packet: &ndp::NeighborSolicitPacket<'a>,
+pub fn generate_NS_packet<'a>(
     src_addr: &Ipv6Addr,
     dst_addr: &Ipv6Addr,
     solicited_addr: &Ipv6Addr,
     src_hwaddr: Option<&MacAddr>,
-) -> Option<NeighborSolicitPacket<'b>> {
+) -> Result<NeighborSolicitPacket<'a>, Error> {
     let pkt_buf: Vec<u8> = match src_hwaddr {
         Some(_) => vec![0; 32],
-        None => vec![0; 24]
+        None => vec![0; 24],
     };
-    let mut ret = match MutableNeighborSolicitPacket::owned(pkt_buf) {
-        Some(v) => v,
-        None => return None,
-    };
+    let mut ret = MutableNeighborSolicitPacket::owned(pkt_buf)
+        .ok_or(Error::PacketGeneration(NDTypes::NeighborSol))?;
     // update the option field if needed
     ret.set_icmpv6_type(Icmpv6Types::NeighborSolicit);
     // set the to-be-announced addr
     ret.set_target_addr(*solicited_addr);
     // NS option: target link local address
-    if let Some(my_hwaddr) =  src_hwaddr {
+    if let Some(my_hwaddr) = src_hwaddr {
         let new_options: Vec<ndp::NdpOption> = vec![ndp::NdpOption {
             option_type: ndp::NdpOptionTypes::SourceLLAddr,
             length: 1,
@@ -92,7 +89,7 @@ pub fn generate_NS_packet<'a, 'b>(
     );
     ret.set_checksum(csum);
 
-    Some(ret.consume_to_immutable())
+    Ok(ret.consume_to_immutable())
 }
 
 //TODO: tests

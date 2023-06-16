@@ -6,7 +6,6 @@ use crate::interfaces;
 use crate::interfaces::NDInterface;
 use crate::packets;
 use crate::types::SocketOptTypes;
-use pnet::packet::icmpv6::ndp::MutableNeighborSolicitPacket;
 use pnet::packet::Packet;
 use socket2::Domain;
 use socket2::Protocol;
@@ -28,13 +27,8 @@ pub async fn send_ns_to(iface_names: &[String], ns_addr: Ipv6Addr) -> Result<(),
 
     println!("Send NS for {} to interface {}", ns_addr, iface.get_name());
 
-    let pkt_buf: Vec<u8> = vec![0; 1024];
-    let pseudo_pkt = MutableNeighborSolicitPacket::owned(pkt_buf)
-        .unwrap()
-        .consume_to_immutable();
     // construct the NA packet
     let na_pkt = packets::generate_NS_packet(
-        &pseudo_pkt,
         iface.get_link_addr(),
         &Ipv6Addr::UNSPECIFIED,
         &ns_addr,
@@ -49,13 +43,8 @@ pub async fn send_ns_to(iface_names: &[String], ns_addr: Ipv6Addr) -> Result<(),
         )
         .unwrap();
 
-    let pkt_buf: Vec<u8> = vec![0; 1024];
-    let pseudo_pkt = MutableNeighborSolicitPacket::owned(pkt_buf)
-        .unwrap()
-        .consume_to_immutable();
     // construct the NA packet
     let na_pkt = packets::generate_NS_packet(
-        &pseudo_pkt,
         iface.get_link_addr(),
         &ns_addr,
         &ns_addr,

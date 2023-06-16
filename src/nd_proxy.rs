@@ -4,7 +4,7 @@ use crate::types::*;
 use crate::{error::Error, packets};
 use ipnet::Ipv6Net;
 use log::{error, info, trace, warn};
-use pnet::packet::{icmpv6::ndp, Packet};
+use pnet::packet::Packet;
 use pnet::util::MacAddr;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::collections::HashMap;
@@ -95,8 +95,6 @@ impl NDProxy {
 
     async fn run_forward(mut self) -> Result<(), Error> {
         while let Some((scope_id, tgt_addr, packet)) = self.mpsc_receiver.recv().await {
-            // TODO: unwrap or continue?
-            let ns_packet = ndp::NeighborSolicitPacket::new(&packet[40..]).unwrap();
             // I will not process the pkt,
             // if the scope id does not show up in upstream_ifs
             let macaddr = match self.upstream_ifs.get(&scope_id) {
@@ -116,7 +114,7 @@ impl NDProxy {
                 _ => *tgt_addr,
             };
             // TODO: is the Error returned by the function critical?
-            self.forward_ns_to_downstream(rewrited_addr, scope_id, ns_packet)
+            self.forward_ns_to_downstream(rewrited_addr, scope_id)
                 .await?;
             // if the neighbors exist in cache, send back the proxied NA
             if let Some(true) = self.neighbors_cache.lock().await.get(&rewrited_addr) {
@@ -145,22 +143,13 @@ impl NDProxy {
             self.upstream_ifs.get(&scope_id).unwrap().get_name()
         );
         // construct the NA packet
-        let na_pkt = match packets::generate_NA_forwarded(
+        let na_pkt = packets::generate_NA_forwarded(
             &Ipv6Addr::UNSPECIFIED,
             &ns_origin,
             &proxied_addr,
             src_hwaddr,
             self.na_flag,
-        ) {
-            Some(v) => v,
-            None => {
-                error!(
-                    "NDProxy for {}: Failed to generate Neighbor Advertisement packet.",
-                    self.proxied_prefix,
-                );
-                return Err(Error::PacketGeneration(NDTypes::NeighborAdv));
-            }
-        };
+        )?;
         // send the packet via send_to()
         match self.pkt_sender.send_to(
             na_pkt.packet(),
@@ -184,7 +173,6 @@ impl NDProxy {
         &mut self,
         rewrited_addr: Ipv6Addr,
         origin_scope_id: u32,
-        original_packet: ndp::NeighborSolicitPacket<'_>,
     ) -> Result<(), Error> {
         // logging
         trace!(
@@ -197,64 +185,25 @@ impl NDProxy {
             if *id == origin_scope_id {
                 continue;
             };
-            // construct a packet whose target is the target address
-            let ns_packet = match packets::generate_NS_packet(
-                &original_packet,
-                &Ipv6Addr::UNSPECIFIED,
-                &rewrited_addr,
-                &rewrited_addr,
-                None,
-            ) {
-                Some(v) => v,
-                None => {
-                    error!(
-                        "NDProxy for {}: Failed to generate Neighbour Solicition packet.",
-                        self.proxied_prefix,
-                    );
-                    return Err(Error::PacketGeneration(NDTypes::NeighborSol));
-                }
-            };
 
+            // TODO: move to addres_translation
             let octs = rewrited_addr.octets();
-            let ns_addr2 = address_translation::construct_v6addr(&[
+            let ns_multicast_addr = address_translation::construct_v6addr(&[
                 0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xff,
                 octs[13], octs[14], octs[15],
             ])
             .unwrap();
             // construct a packet whose target is the target address
-            let ns_packet2 = match packets::generate_NS_packet(
-                &original_packet,
+            let ns_packet2 = packets::generate_NS_packet(
                 iface.get_link_addr(),
-                &ns_addr2,
+                &ns_multicast_addr,
                 &rewrited_addr,
                 Some(iface.get_hwaddr()),
-            ) {
-                Some(v) => v,
-                None => {
-                    error!(
-                        "NDProxy for {}: Failed to generate Neighbour Solicition packet.",
-                        self.proxied_prefix,
-                    );
-                    return Err(Error::PacketGeneration(NDTypes::NeighborSol));
-                }
-            };
-
-            if let Err(e) = self.pkt_sender.send_to(
-                ns_packet.packet(),
-                &SocketAddrV6::new(rewrited_addr, 0, 0, *id).into(),
-            ) {
-                error!(
-                    "NDProxy for {}: [{:?}] failed to send Neighbour Solicition packet to interface {}.",
-                    self.proxied_prefix,
-                    e,
-                    self.downstream_ifs.get(id).unwrap().get_name(),
-                );
-                return Err(Error::Io(e));
-            };
+            )?;
 
             if let Err(e) = self.pkt_sender.send_to(
                 ns_packet2.packet(),
-                &SocketAddrV6::new(ns_addr2, 0, 0, *id).into(),
+                &SocketAddrV6::new(ns_multicast_addr, 0, 0, *id).into(),
             ) {
                 error!(
                     "NDProxy for {}: [{:?}] failed to send Neighbour Solicition packet to interface {}.",
