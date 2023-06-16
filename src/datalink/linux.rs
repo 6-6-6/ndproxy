@@ -1,6 +1,7 @@
 use crate::datalink::{PacketReceiver, PacketReceiverOpts};
 use crate::error;
 use crate::interfaces;
+use crate::types::SocketOptTypes;
 use classic_bpf::*;
 use pnet::packet::icmpv6::Icmpv6Types;
 use std::mem::size_of;
@@ -26,7 +27,7 @@ impl PacketReceiverOpts for PacketReceiver {
             )
         } {
             0 => Ok(()),
-            errno => Err(error::Error::SocketOpt(errno)),
+            _errno => Err(error::Error::SocketOpt(SocketOptTypes::BindToIface)),
         }
     }
 
@@ -45,7 +46,7 @@ impl PacketReceiverOpts for PacketReceiver {
             )
         } {
             0 => Ok(()),
-            errno => Err(error::Error::SocketOpt(errno)),
+            _errno => Err(error::Error::SocketOpt(SocketOptTypes::AllMulti)),
         }
     }
 
@@ -74,7 +75,7 @@ impl PacketReceiverOpts for PacketReceiver {
 
         ipv6_socket_fprog
             .attach_filter(self.socket.as_raw_fd())
-            .map_err(error::Error::SocketOpt)
+            .map_err(|_| error::Error::SocketOpt(SocketOptTypes::AttachBPF))
     }
 
     fn set_filter_pass_ipv6_na(&self) -> Result<(), error::Error> {
@@ -102,6 +103,6 @@ impl PacketReceiverOpts for PacketReceiver {
 
         ipv6_socket_fprog
             .attach_filter(self.socket.as_raw_fd())
-            .map_err(error::Error::SocketOpt)
+            .map_err(|_| error::Error::SocketOpt(SocketOptTypes::AttachBPF))
     }
 }

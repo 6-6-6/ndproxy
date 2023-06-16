@@ -10,7 +10,7 @@ pub enum Error {
     #[error("std io errors")]
     Io(()),
     #[error("socketopt error")]
-    SocketOpt(i32),
+    SocketOpt(SocketOptTypes),
     #[error("NA/NS packet generation error")]
     PacketGeneration(NDTypes),
 }

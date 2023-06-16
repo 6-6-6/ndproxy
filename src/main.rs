@@ -3,6 +3,7 @@ mod datalink;
 mod dev;
 mod error;
 mod interfaces;
+mod na_monitor;
 mod nd_proxy;
 mod ns_monitor;
 mod packets;
@@ -54,9 +55,7 @@ async fn main() -> Result<(), error::Error> {
     let args = Args::parse();
 
     match &args.command {
-        Some(Commands::Namonitor) => dev::NAMonitor::new(&[args.monitor_this_interface.unwrap()])
-            .unwrap()
-            .run(),
+        Some(Commands::Namonitor) => dev::namonitor(&[args.monitor_this_interface.unwrap()]).await,
         Some(Commands::Nsmonitor) => dev::nsmonitor(&[args.monitor_this_interface.unwrap()]).await,
         Some(Commands::Nssender) => {
             dev::send_ns_to(

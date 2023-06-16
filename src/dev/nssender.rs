@@ -5,6 +5,7 @@ use crate::error;
 use crate::interfaces;
 use crate::interfaces::NDInterface;
 use crate::packets;
+use crate::types::SocketOptTypes;
 use pnet::packet::icmpv6::ndp::MutableNeighborSolicitPacket;
 use pnet::packet::Packet;
 use socket2::Domain;
@@ -22,7 +23,7 @@ pub async fn send_ns_to(iface_names: &[String], ns_addr: Ipv6Addr) -> Result<(),
     //
     let pkt_sender = match Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::ICMPV6)) {
         Ok(v) => v,
-        Err(_) => return Err(error::Error::SocketOpt(0)),
+        Err(_) => return Err(error::Error::SocketOpt(SocketOptTypes::SocketGeneration)),
     };
 
     println!("Send NS for {} to interface {}", ns_addr, iface.get_name());

@@ -20,10 +20,8 @@ getset = "0.1.1"
 ipnet = "2.3.1"
 libc = "0.2.98"
 log = { version = "0.4.14", features = ["release_max_level_info"] }
-netlink-packet-route = "0.13.0"
 pnet = "0.28.0"
 pretty_env_logger = "0.4.0"
-rtnetlink = "0.11.0"
 socket2 = { version = "0.4.1", features = ["all"] }
 tokio = { version = "1.9.0", features = ["sync", "rt-multi-thread", "macros"] }
 ip_network_table-deps-treebitmap = "0.5.0"

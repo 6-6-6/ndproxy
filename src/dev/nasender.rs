@@ -5,6 +5,7 @@ use crate::error;
 use crate::interfaces;
 use crate::interfaces::NDInterface;
 use crate::packets;
+use crate::types::SocketOptTypes;
 use pnet::packet::Packet;
 use socket2::Domain;
 use socket2::Protocol;
@@ -24,7 +25,7 @@ pub async fn send_na_to(
     //
     let pkt_sender = match Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::ICMPV6)) {
         Ok(v) => v,
-        Err(_) => return Err(error::Error::SocketOpt(0)),
+        Err(_) => return Err(error::Error::SocketOpt(SocketOptTypes::SocketGeneration)),
     };
 
     println!(

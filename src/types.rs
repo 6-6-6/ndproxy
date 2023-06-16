@@ -13,3 +13,11 @@ pub enum NDTypes {
     NeighborAdv,
     NeighborSol,
 }
+
+#[derive(Debug)]
+pub enum SocketOptTypes {
+    AllMulti,
+    AttachBPF,
+    BindToIface,
+    SocketGeneration,
+}

@@ -1,5 +1,6 @@
 use crate::error;
 use ipnet::Ipv6Net;
+use std::time::Duration;
 
 #[derive(getset::Getters, Debug, std::cmp::PartialEq, Clone)]
 pub struct NDConfig {
@@ -30,6 +31,9 @@ pub const PROXY_FORWARD: u8 = 1;
 pub const ADDRESS_NOCHANGE: u8 = 0;
 pub const ADDRESS_NETMAP: u8 = 1;
 pub const ADDRESS_NPT: u8 = 2;
+
+// TODO: magic number or set it in config file?
+pub const TTL_OF_CACHE: Duration = Duration::from_secs(600);
 
 impl NDConfig {
     pub fn new(name: String, value: config::Value) -> Result<Self, error::Error> {
