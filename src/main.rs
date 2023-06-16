@@ -12,7 +12,7 @@ mod types;
 use crate::na_monitor::NAMonitor;
 use crate::ns_monitor::NSMonitor;
 use crate::routing::construst_routing_table;
-use futures::future::{select, select_all, FutureExt, Either};
+use futures::future::{select, select_all, Either, FutureExt};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -117,11 +117,16 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
         monitored_ns_ifaces.extend(upstream_ifaces);
         monitored_na_ifaces.extend(downstream_ifaces);
         //
-        let mut proxy = nd_proxy::NDProxy::new(conf, neighbors_cache.clone()).unwrap();
+        let mut proxy = nd_proxy::NDProxy::new(conf, neighbors_cache.clone())?;
         // route prefix to its corresponding ndproxy
         route_map.insert(
             *proxy.get_proxied_prefix(),
-            proxy.mpsc_sender_mut().take().unwrap(),
+            proxy.mpsc_sender_mut().take().unwrap_or_else(|| {
+                panic!(
+                    "cannot take mpsc sender from ndproxy of {}",
+                    proxy.get_proxied_prefix()
+                )
+            }),
         );
         ndproxies.push(proxy.run().boxed());
     }
@@ -144,7 +149,7 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
     drop(route_map);
     // drop unused Arc
     drop(neighbors_cache);
-    
+
     // main loop, if any task failed, return the Result and exit?
     match select(select_all(ndproxies), select_all(monitors)).await {
         Either::Left(((ret, _, _), _)) => ret,

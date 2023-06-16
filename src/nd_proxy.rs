@@ -140,7 +140,10 @@ impl NDProxy {
             self.proxied_prefix,
             proxied_addr,
             ns_origin,
-            self.upstream_ifs.get(&scope_id).unwrap().get_name()
+            self.upstream_ifs
+                .get(&scope_id)
+                .unwrap_or_else(|| panic!("no upstream iface defined for {}", scope_id))
+                .get_name()
         );
         // construct the NA packet
         let na_pkt = packets::generate_NA_forwarded(
@@ -161,7 +164,7 @@ impl NDProxy {
                     "NDProxy for {}: [{:?}] failed to send Neighbor Advertisement packet to interface {}.",
                     self.proxied_prefix,
                     e,
-                    self.upstream_ifs.get(&scope_id).unwrap().get_name()
+                    self.upstream_ifs.get(&scope_id).unwrap_or_else(|| panic!("no upstream iface defined for {}", scope_id)).get_name()
                 );
                 Err(Error::Io(e))
             }
@@ -204,7 +207,7 @@ impl NDProxy {
                     "NDProxy for {}: [{:?}] failed to send Neighbour Solicition packet to interface {}.",
                     self.proxied_prefix,
                     e,
-                    self.downstream_ifs.get(id).unwrap().get_name(),
+                    self.downstream_ifs.get(id).unwrap_or_else(|| panic!("no downpstream iface defined for {}", id)).get_name(),
                 );
                 return Err(Error::Io(e));
             };
