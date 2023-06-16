@@ -6,4 +6,6 @@ pub enum Error {
     IPNet(#[from] ipnet::AddrParseError),
     #[error("config error")]
     Config(#[from] config::ConfigError),
+    #[error("socketopt error")]
+    SocketOpt(i32),
 }

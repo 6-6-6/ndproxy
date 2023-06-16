@@ -3,20 +3,22 @@ mod linux;
 pub use linux::*;
 
 use crate::interfaces;
+use crate::error;
 use socket2::{Domain, Protocol, Socket, Type};
 
 use std::mem::MaybeUninit;
 
 pub trait PacketReceiverOpts {
     /// bind the socket to a particular interface
-    fn bind_to_interface(&self, iface: &interfaces::NDInterface) -> Result<(), i32>;
+    fn bind_to_interface(&self, iface: &interfaces::NDInterface) -> Result<(), error::Error>;
     /// set the socket to receive all of the multicast messages
-    fn set_allmulti(&self, iface: &interfaces::NDInterface) -> Result<(), i32>;
+    fn set_allmulti(&self, iface: &interfaces::NDInterface) -> Result<(), error::Error>;
     /// setup a packet filter (in-kernel) to drop the irrelavant packets
     /// and copy only Neighbor Solicitation packets to userland
     ///
     /// for Unix-like systems, crate classic_bpf is used
-    fn set_filter_pass_ipv6_ns(&self) -> Result<(), i32>;
+    fn set_filter_pass_ipv6_ns(&self) -> Result<(), error::Error>;
+    fn set_filter_pass_ipv6_na(&self) -> Result<(), error::Error>;
 }
 
 /// wrapper for socket::Socket

@@ -35,6 +35,7 @@ struct Args {
 #[derive(Subcommand, Debug)]
 enum Commands {
     Nsmonitor,
+    Namonitor,
 }
 
 
@@ -46,8 +47,11 @@ async fn main() -> Result<(), error::Error> {
 
 
     match &args.command {
+        Some(Commands::Namonitor) => {
+            dev::NAMonitor::new(&[args.just_monitor_it.unwrap()]).unwrap().run()
+        }
         Some(Commands::Nsmonitor) => {
-            dev::nsmonitor(&vec![args.just_monitor_it.unwrap()]).await
+            dev::nsmonitor(&[args.just_monitor_it.unwrap()]).await
         }
         None => {
             ndproxy_main(args.config).await
