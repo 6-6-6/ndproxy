@@ -20,12 +20,11 @@ pub async fn nsmonitor(iface_names: &[String]) -> Result<(), Error> {
     let nsmonitors: Vec<_> = monitored_ifaces
         .into_values()
         .map(|iface| NSMonitor::new(construst_routing_table(route_map.clone()), iface))
-        .into_iter()
         .map(|inst| inst.unwrap().run().boxed())
         .collect();
 
     // main loop
-    let ret = select(
+    let _ret = select(
         mpsc_recv_and_drop(mpsc_receiver).boxed(),
         select_all(nsmonitors),
     )
