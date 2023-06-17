@@ -1,4 +1,4 @@
-use crate::conf::{NDConfig, ADDRESS_NETMAP, ADDRESS_NPT, PROXY_STATIC};
+use crate::conf::{NDConfig, ADDRESS_NETMAP, ADDRESS_NPT, PROXY_STATIC, MPSC_CAPACITY};
 use crate::interfaces::{get_ifaces_defined_by_config, NDInterface};
 use crate::types::*;
 use crate::{error::Error, packets};
@@ -40,12 +40,14 @@ pub struct NDProxy {
 
 impl NDProxy {
     pub fn new(config: NDConfig, neighbors_cache: NeighborsCache) -> Result<Self, Error> {
+        // get values from config
         let proxied_prefix = *config.get_proxied_pfx();
         let proxy_type = *config.get_proxy_type();
         let address_mangling = *config.get_address_mangling();
         let rewrite_prefix = *config.get_dst_pfx();
-        let (mpsc_sender, mpsc_receiver) = mpsc::unbounded_channel();
         let (upstream_ifs, downstream_ifs) = get_ifaces_defined_by_config(&config);
+        // generate local resources
+        let (mpsc_sender, mpsc_receiver) = mpsc::channel(MPSC_CAPACITY);
         let pkt_sender = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::ICMPV6))?;
         pkt_sender
             .set_multicast_hops_v6(255)
@@ -94,7 +96,9 @@ impl NDProxy {
     }
 
     async fn run_forward(mut self) -> Result<(), Error> {
-        while let Some((scope_id, tgt_addr, packet)) = self.mpsc_receiver.recv().await {
+        println!("sts");
+        loop {
+            let (scope_id, tgt_addr, packet) = self.mpsc_receiver.recv().await.unwrap();
             // I will not process the pkt,
             // if the scope id does not show up in upstream_ifs
             let macaddr = match self.upstream_ifs.get(&scope_id) {
@@ -115,8 +119,7 @@ impl NDProxy {
             };
 
             // send unicast NS anyways
-            self.forward_ns_to_downstream(rewrited_addr, rewrited_addr, scope_id)
-                .await?;
+            self.forward_ns_to_downstream(rewrited_addr, rewrited_addr, scope_id)?;
             // if the neighbors exist in cache, send back the proxied NA
             match self.neighbors_cache.get(&rewrited_addr) {
                 Some(true) => self.send_na_to_upstream(
@@ -131,12 +134,10 @@ impl NDProxy {
                         address_translation::gen_solicited_node_multicast_address(&rewrited_addr),
                         rewrited_addr,
                         scope_id,
-                    )
-                    .await?
+                    )?
                 }
             }
         }
-        Ok(())
     }
 
     /// construct a NA packet, and send it to upstream
@@ -171,7 +172,7 @@ impl NDProxy {
     }
 
     /// discover neighbors on proxied (downstream) interfaces
-    async fn forward_ns_to_downstream(
+    fn forward_ns_to_downstream(
         &mut self,
         dst_addr: Ipv6Addr,
         ns_tgt_addr: Ipv6Addr,

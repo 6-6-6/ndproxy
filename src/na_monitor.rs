@@ -2,7 +2,7 @@ use crate::datalink::{PacketReceiver, PacketReceiverOpts};
 use crate::error::Error;
 use crate::interfaces::NDInterface;
 use crate::types::*;
-use log::{trace, warn};
+use log::{warn, info};
 
 /// monitors for Neighbor Solicitation
 /// the received packet will be sent to the corresponding NDProxy via mpsc
@@ -48,7 +48,7 @@ impl NAMonitor {
             };
             // logging
             unsafe {
-                trace!(
+                info!(
                     "NAMonitor for {}: Get a NA from {} to {} advertising 📢{}📢.",
                     self.iface.get_name(),
                     // src_addr
