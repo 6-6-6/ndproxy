@@ -1,7 +1,7 @@
 use crate::datalink::{PacketReceiver, PacketReceiverOpts};
 use crate::interfaces::NDInterface;
 use crate::types::*;
-use crate::{conf, error};
+use crate::error;
 use log::{trace, warn};
 
 /// monitors for Neighbor Solicitation
@@ -59,8 +59,7 @@ impl NAMonitor {
             }
             // update ttl cache
             self.neighbors_cache
-                .blocking_lock()
-                .insert(*tgt_addr, true, conf::TTL_OF_CACHE);
+                .set(*tgt_addr, true, None);
         }
 
         Ok(())

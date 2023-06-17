@@ -117,7 +117,7 @@ impl NDProxy {
             self.forward_ns_to_downstream(rewrited_addr, scope_id)
                 .await?;
             // if the neighbors exist in cache, send back the proxied NA
-            if let Some(true) = self.neighbors_cache.lock().await.get(&rewrited_addr) {
+            if let Some(true) = self.neighbors_cache.get(&rewrited_addr) {
                 let src_addr =
                     unsafe { address_translation::construct_v6addr_unchecked(&packet[8..]) };
                 // TODO: randomly send to multicast addr
