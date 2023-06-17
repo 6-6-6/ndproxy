@@ -79,7 +79,9 @@ async fn main() -> Result<(), error::Error> {
     pretty_env_logger::init();
     let args = Args::parse();
     match &args.command {
-        Some(Commands::Namonitor) => dev::namonitor(&[args.monitor_this_interface.unwrap()]).await,
+        Some(Commands::Namonitor) => {
+            spawn_blocking(move || dev::namonitor(&[args.monitor_this_interface.unwrap()])).await?
+        }
         Some(Commands::Nsmonitor) => dev::nsmonitor(&[args.monitor_this_interface.unwrap()]).await,
         Some(Commands::Nssender) => {
             dev::send_ns_to(
