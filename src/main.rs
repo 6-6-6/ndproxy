@@ -152,12 +152,6 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
     // drop unused Arc
     drop(neighbors_cache);
 
-    let (ret, _, _) = select_all(tasks).await;
-    ret?
-
     // main loop, if any task failed, return the Result and exit?
-    //    match select(select_all(ndproxies), select_all(monitors)).await {
-    //      Either::Left(((ret, _, _), _)) => ret,
-    //    Either::Right(((ret, _, _), _)) => ret?,
-    //}
+    select_all(tasks).await.0?
 }

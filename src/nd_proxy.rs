@@ -94,7 +94,6 @@ impl NDProxy {
     }
 
     async fn run_forward(mut self) -> Result<(), Error> {
-        println!("sts");
         loop {
             let (scope_id, tgt_addr, packet) = self.mpsc_receiver.recv().await.unwrap();
             // I will not process the pkt,
