@@ -1,4 +1,5 @@
-use crate::conf::{NDConfig, ADDRESS_NETMAP, ADDRESS_NPT, PROXY_STATIC, MPSC_CAPACITY};
+use crate::conf::{NDConfig, ADDRESS_NETMAP, ADDRESS_NPT, MPSC_CAPACITY, PROXY_STATIC};
+use crate::datalink::{PacketSender, PacketSenderOpts};
 use crate::interfaces::{get_ifaces_defined_by_config, NDInterface};
 use crate::types::*;
 use crate::{error::Error, packets};
@@ -6,7 +7,6 @@ use ipnet::Ipv6Net;
 use log::{info, trace, warn};
 use pnet::packet::Packet;
 use pnet::util::MacAddr;
-use socket2::{Domain, Protocol, Socket, Type};
 use std::collections::HashMap;
 use std::net::{Ipv6Addr, SocketAddrV6};
 use tokio::sync::mpsc;
@@ -30,7 +30,7 @@ pub struct NDProxy {
     mpsc_receiver: SharedNSPacketReceiver,
     #[get_mut = "pub with_prefix"]
     mpsc_sender: Option<SharedNSPacketSender>,
-    pkt_sender: Socket,
+    pkt_sender: PacketSender,
     na_flag: u8,
     /// manage ndp myself
     neighbors_cache: NeighborsCache,
@@ -48,13 +48,10 @@ impl NDProxy {
         let (upstream_ifs, downstream_ifs) = get_ifaces_defined_by_config(&config);
         // generate local resources
         let (mpsc_sender, mpsc_receiver) = mpsc::channel(MPSC_CAPACITY);
-        let pkt_sender = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::ICMPV6))?;
-        pkt_sender
-            .set_multicast_hops_v6(255)
-            .map_err(|_| Error::SocketOpt(SocketOptTypes::SetMultiHop))?;
-        pkt_sender
-            .set_unicast_hops_v6(255)
-            .map_err(|_| Error::SocketOpt(SocketOptTypes::SetUniHop))?;
+        // packet sender
+        let pkt_sender = PacketSender::new()?;
+        pkt_sender.set_multicast_hops_v6(255)?;
+        pkt_sender.set_unicast_hops_v6(255)?;
         // if everything goes as expected
         Ok(Self {
             proxy_type,
@@ -90,7 +87,8 @@ impl NDProxy {
             };
             let src_addr = unsafe { address_translation::construct_v6addr_unchecked(&packet[8..]) };
             // TODO: randomly send to multicast addr
-            self.send_na_to_upstream(src_addr, *tgt_addr, macaddr, scope_id)?
+            self.send_na_to_upstream(src_addr, *tgt_addr, macaddr, scope_id)
+                .await?
         }
         Ok(())
     }
@@ -119,29 +117,34 @@ impl NDProxy {
             };
 
             // send unicast NS anyways
-            self.forward_ns_to_downstream(rewrited_addr, rewrited_addr, scope_id)?;
+            self.forward_ns_to_downstream(rewrited_addr, rewrited_addr, scope_id)
+                .await?;
             // if the neighbors exist in cache, send back the proxied NA
             match self.neighbors_cache.get(&rewrited_addr) {
-                Some(true) => self.send_na_to_upstream(
-                    unsafe { address_translation::construct_v6addr_unchecked(&packet[8..]) },
-                    *tgt_addr,
-                    &macaddr,
-                    scope_id,
-                )?,
+                Some(true) => {
+                    self.send_na_to_upstream(
+                        unsafe { address_translation::construct_v6addr_unchecked(&packet[8..]) },
+                        *tgt_addr,
+                        &macaddr,
+                        scope_id,
+                    )
+                    .await?
+                }
                 // send multicast NS if the neighbor does not exist, and increase the possibility to find it
                 _ => {
                     self.forward_ns_to_downstream(
                         address_translation::gen_solicited_node_multicast_address(&rewrited_addr),
                         rewrited_addr,
                         scope_id,
-                    )?
+                    )
+                    .await?
                 }
             }
         }
     }
 
     /// construct a NA packet, and send it to upstream
-    fn send_na_to_upstream(
+    async fn send_na_to_upstream(
         &self,
         ns_origin: Ipv6Addr,
         proxied_addr: Ipv6Addr,
@@ -164,15 +167,17 @@ impl NDProxy {
             self.na_flag,
         )?;
         // send the packet via send_to()
-        self.pkt_sender.send_to(
-            na_pkt.packet(),
-            &SocketAddrV6::new(ns_origin, 0, 0, scope_id).into(),
-        )?;
+        self.pkt_sender
+            .send_pkt_to(
+                na_pkt.packet(),
+                &SocketAddrV6::new(ns_origin, 0, 0, scope_id).into(),
+            )
+            .await?;
         Ok(())
     }
 
     /// discover neighbors on proxied (downstream) interfaces
-    fn forward_ns_to_downstream(
+    async fn forward_ns_to_downstream(
         &mut self,
         dst_addr: Ipv6Addr,
         ns_tgt_addr: Ipv6Addr,
@@ -192,16 +197,18 @@ impl NDProxy {
             };
 
             // send unicast NS packet anyways
-            self.pkt_sender.send_to(
-                packets::generate_NS_packet(
-                    iface.get_link_addr(),
-                    &dst_addr,
-                    &ns_tgt_addr,
-                    Some(iface.get_hwaddr()),
-                )?
-                .packet(),
-                &SocketAddrV6::new(dst_addr, 0, 0, *id).into(),
-            )?;
+            self.pkt_sender
+                .send_pkt_to(
+                    packets::generate_NS_packet(
+                        iface.get_link_addr(),
+                        &dst_addr,
+                        &ns_tgt_addr,
+                        Some(iface.get_hwaddr()),
+                    )?
+                    .packet(),
+                    &SocketAddrV6::new(dst_addr, 0, 0, *id).into(),
+                )
+                .await?;
         }
         Ok(())
     }

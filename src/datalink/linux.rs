@@ -1,4 +1,4 @@
-use crate::datalink::{PacketReceiver, PacketReceiverOpts};
+use super::{PacketReceiver, PacketReceiverOpts, PacketSender, PacketSenderOpts};
 use crate::error::Error;
 use crate::interfaces;
 use crate::types::SocketOptTypes;
@@ -104,5 +104,21 @@ impl PacketReceiverOpts for PacketReceiver {
         ipv6_socket_fprog
             .attach_filter(self.socket.as_raw_fd())
             .map_err(|_| Error::SocketOpt(SocketOptTypes::AttachBPF))
+    }
+}
+
+impl PacketSenderOpts for PacketSender {
+    fn set_multicast_hops_v6(&self, hops: u32) -> Result<(), Error> {
+        self.socket
+            .get_ref()
+            .set_multicast_hops_v6(hops)
+            .map_err(|_| Error::SocketOpt(SocketOptTypes::SetMultiHop))
+    }
+
+    fn set_unicast_hops_v6(&self, hops: u32) -> Result<(), Error> {
+        self.socket
+            .get_ref()
+            .set_unicast_hops_v6(hops)
+            .map_err(|_| Error::SocketOpt(SocketOptTypes::SetUniHop))
     }
 }

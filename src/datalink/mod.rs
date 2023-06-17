@@ -4,7 +4,7 @@ pub use linux::*;
 
 use crate::error::Error;
 use crate::interfaces;
-use socket2::{Domain, Protocol, Socket, Type};
+use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use tokio::io::unix::AsyncFd;
 
 use std::mem::MaybeUninit;
@@ -22,8 +22,6 @@ pub trait PacketReceiverOpts {
     fn set_filter_pass_ipv6_na(&self) -> Result<(), Error>;
 }
 
-/// TODO: async it
-/// wrapper for socket::Socket
 pub struct PacketReceiver {
     socket: AsyncFd<Socket>,
     buf: Vec<MaybeUninit<u8>>,
@@ -37,7 +35,7 @@ impl PacketReceiver {
             Some(Protocol::ICMPV6),
         )?)?;
         let buf = vec![MaybeUninit::<u8>::zeroed(); 1500];
-        Ok(PacketReceiver { socket, buf })
+        Ok(Self { socket, buf })
     }
 }
 
@@ -53,5 +51,38 @@ impl PacketReceiver {
             .iter()
             .map(|x| unsafe { x.assume_init() })
             .collect())
+    }
+}
+
+pub trait PacketSenderOpts {
+    fn set_multicast_hops_v6(&self, hops: u32) -> Result<(), Error>;
+    fn set_unicast_hops_v6(&self, hops: u32) -> Result<(), Error>;
+}
+
+/// TODO: async it
+/// wrapper for socket::Socket
+pub struct PacketSender {
+    socket: AsyncFd<Socket>,
+}
+
+impl PacketSender {
+    pub fn new() -> Result<Self, Error> {
+        let socket = AsyncFd::new(Socket::new(
+            Domain::IPV6,
+            Type::RAW,
+            Some(Protocol::ICMPV6),
+        )?)?;
+        Ok(Self { socket })
+    }
+}
+
+impl PacketSender {
+    pub async fn send_pkt_to(&self, pkt: &[u8], addr: &SockAddr) -> Result<(), Error> {
+        self.socket
+            .writable()
+            .await?
+            .try_io(|socket| socket.get_ref().send_to(pkt, addr))
+            .map_err(Error::TokioTryIo)??;
+        Ok(())
     }
 }
