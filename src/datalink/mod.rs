@@ -5,6 +5,7 @@ pub use linux::*;
 use crate::error::Error;
 use crate::interfaces;
 use socket2::{Domain, Protocol, Socket, Type};
+use tokio::io::unix::AsyncFd;
 
 use std::mem::MaybeUninit;
 
@@ -24,28 +25,33 @@ pub trait PacketReceiverOpts {
 /// TODO: async it
 /// wrapper for socket::Socket
 pub struct PacketReceiver {
-    socket: Socket,
+    socket: AsyncFd<Socket>,
     buf: Vec<MaybeUninit<u8>>,
 }
 
 impl PacketReceiver {
-    pub fn new() -> Self {
-        let socket = Socket::new(Domain::PACKET, Type::DGRAM, Some(Protocol::ICMPV6)).unwrap();
+    pub fn new() -> Result<Self, Error> {
+        let socket = AsyncFd::new(Socket::new(
+            Domain::PACKET,
+            Type::DGRAM,
+            Some(Protocol::ICMPV6),
+        )?)?;
         let buf = vec![MaybeUninit::<u8>::zeroed(); 1500];
-        PacketReceiver { socket, buf }
+        Ok(PacketReceiver { socket, buf })
     }
 }
 
-impl Iterator for PacketReceiver {
-    type Item = Vec<u8>;
-
-    fn next(&mut self) -> Option<Vec<u8>> {
-        let len = self.socket.recv(&mut self.buf).unwrap();
-        Some(
-            self.buf[0..len]
-                .iter()
-                .map(|x| unsafe { x.assume_init() })
-                .collect(),
-        )
+impl PacketReceiver {
+    pub async fn recv_pkt(&mut self) -> Result<Vec<u8>, Error> {
+        let len = self
+            .socket
+            .readable()
+            .await?
+            .try_io(|socket| socket.get_ref().recv(&mut self.buf))
+            .map_err(Error::TokioTryIo)??;
+        Ok(self.buf[0..len]
+            .iter()
+            .map(|x| unsafe { x.assume_init() })
+            .collect())
     }
 }

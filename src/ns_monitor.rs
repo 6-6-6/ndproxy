@@ -25,7 +25,7 @@ impl NSMonitor {
         routing_table: IpLookupTable<Ipv6Addr, SharedNSPacketSender>,
         iface: NDInterface,
     ) -> Result<Self, Error> {
-        let inner = PacketReceiver::new();
+        let inner = PacketReceiver::new()?;
         inner.bind_to_interface(&iface)?;
         inner.set_allmulti(&iface)?;
         inner.set_filter_pass_ipv6_ns()?;
@@ -38,9 +38,10 @@ impl NSMonitor {
     }
 
     /// main loop: receive NS packet and forward it to related consumer
-    pub fn run(mut self) -> Result<(), Error> {
+    pub async fn run(mut self) -> Result<(), Error> {
         warn!("NSMonitor for {}: Start to work", self.iface.get_name());
-        for packet in self.inner.by_ref() {
+        loop {
+            let packet = self.inner.recv_pkt().await?;
             if packet.len() < 64 {
                 continue;
             };
@@ -85,6 +86,5 @@ impl NSMonitor {
                 };
             }
         }
-        Ok(())
     }
 }

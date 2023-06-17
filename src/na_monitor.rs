@@ -19,7 +19,7 @@ pub struct NAMonitor {
 
 impl NAMonitor {
     pub fn new(iface: NDInterface, neighbors_cache: NeighborsCache) -> Result<Self, Error> {
-        let inner = PacketReceiver::new();
+        let inner = PacketReceiver::new()?;
         inner.bind_to_interface(&iface)?;
         inner.set_allmulti(&iface)?;
         inner.set_filter_pass_ipv6_na()?;
@@ -32,9 +32,10 @@ impl NAMonitor {
     }
 
     /// main loop: receive NS packet and forward it to related consumer
-    pub fn run(mut self) -> Result<(), Error> {
+    pub async fn run(mut self) -> Result<(), Error> {
         warn!("NAMonitor for {}: Start to work", self.iface.get_name());
-        for packet in self.inner.by_ref() {
+        loop {
+            let packet = self.inner.recv_pkt().await?;
             if packet.len() < 64 {
                 continue;
             };
@@ -60,7 +61,5 @@ impl NAMonitor {
             // update ttl cache
             self.neighbors_cache.set(*tgt_addr, true, None);
         }
-
-        Ok(())
     }
 }

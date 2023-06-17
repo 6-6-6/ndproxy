@@ -21,8 +21,9 @@ libc = "0.2.146"
 log = { version = "0.4.19", features = ["release_max_level_info"] }
 pnet = "0.33.0"
 pretty_env_logger = "0.5.0"
-socket2 = { version = "0.5.3", features = ["all"] }
-tokio = { version = "1.28.2", default-features = false, features = ["sync", "rt-multi-thread", "macros"] }
+# follow the version of tokio/net
+socket2 = { version = "0.4", features = ["all"] }
+tokio = { version = "1.28.2", default-features = false, features = ["net", "sync", "rt-multi-thread", "macros"] }
 ip_network_table-deps-treebitmap = "0.5.0"
 r-cache = "0.5.0"
 thiserror = "1.0.40"
