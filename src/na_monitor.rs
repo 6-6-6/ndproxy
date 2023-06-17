@@ -1,7 +1,7 @@
 use crate::datalink::{PacketReceiver, PacketReceiverOpts};
+use crate::error::Error;
 use crate::interfaces::NDInterface;
 use crate::types::*;
-use crate::error;
 use log::{trace, warn};
 
 /// monitors for Neighbor Solicitation
@@ -18,7 +18,7 @@ pub struct NAMonitor {
 }
 
 impl NAMonitor {
-    pub fn new(iface: NDInterface, neighbors_cache: NeighborsCache) -> Result<Self, error::Error> {
+    pub fn new(iface: NDInterface, neighbors_cache: NeighborsCache) -> Result<Self, Error> {
         let inner = PacketReceiver::new();
         inner.bind_to_interface(&iface)?;
         inner.set_allmulti(&iface)?;
@@ -32,7 +32,7 @@ impl NAMonitor {
     }
 
     /// main loop: receive NS packet and forward it to related consumer
-    pub fn run(mut self) -> Result<(), error::Error> {
+    pub fn run(mut self) -> Result<(), Error> {
         warn!("NAMonitor for {}: Start to work", self.iface.get_name());
         for packet in self.inner.by_ref() {
             if packet.len() < 64 {
@@ -58,8 +58,7 @@ impl NAMonitor {
                 );
             }
             // update ttl cache
-            self.neighbors_cache
-                .set(*tgt_addr, true, None);
+            self.neighbors_cache.set(*tgt_addr, true, None);
         }
 
         Ok(())
