@@ -3,7 +3,7 @@ use crate::interfaces::{get_ifaces_defined_by_config, NDInterface};
 use crate::types::*;
 use crate::{error::Error, packets};
 use ipnet::Ipv6Net;
-use log::{error, info, trace, warn};
+use log::{info, trace, warn};
 use pnet::packet::Packet;
 use pnet::util::MacAddr;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -101,7 +101,7 @@ impl NDProxy {
                 Some(iface) => iface.get_hwaddr().to_owned(),
                 None => continue,
             };
-            // send NS to downstreams anyway
+
             // rewrite the target address if needed
             let rewrited_addr = match self.address_mangling {
                 ADDRESS_NETMAP => address_translation::netmapv6(*tgt_addr, &self.rewrite_prefix),
@@ -113,15 +113,27 @@ impl NDProxy {
                 ),
                 _ => *tgt_addr,
             };
-            // TODO: is the Error returned by the function critical?
-            self.forward_ns_to_downstream(rewrited_addr, scope_id)
+
+            // send unicast NS anyways
+            self.forward_ns_to_downstream(rewrited_addr, rewrited_addr, scope_id)
                 .await?;
             // if the neighbors exist in cache, send back the proxied NA
-            if let Some(true) = self.neighbors_cache.get(&rewrited_addr) {
-                let src_addr =
-                    unsafe { address_translation::construct_v6addr_unchecked(&packet[8..]) };
-                // TODO: randomly send to multicast addr
-                self.send_na_to_upstream(src_addr, *tgt_addr, &macaddr, scope_id)?
+            match self.neighbors_cache.get(&rewrited_addr) {
+                Some(true) => self.send_na_to_upstream(
+                    unsafe { address_translation::construct_v6addr_unchecked(&packet[8..]) },
+                    *tgt_addr,
+                    &macaddr,
+                    scope_id,
+                )?,
+                // send multicast NS if the neighbor does not exist, and increase the possibility to find it
+                _ => {
+                    self.forward_ns_to_downstream(
+                        address_translation::gen_solicited_node_multicast_address(&rewrited_addr),
+                        rewrited_addr,
+                        scope_id,
+                    )
+                    .await?
+                }
             }
         }
         Ok(())
@@ -136,14 +148,11 @@ impl NDProxy {
         scope_id: u32,
     ) -> Result<(), Error> {
         info!(
-            "NDProxy for {}: Send NA for {} to {} on interface {}",
+            "NDProxy for {}: Send NA for {} to {} on interface {:?}",
             self.proxied_prefix,
             proxied_addr,
             ns_origin,
-            self.upstream_ifs
-                .get(&scope_id)
-                .unwrap_or_else(|| panic!("no upstream iface defined for {}", scope_id))
-                .get_name()
+            self.upstream_ifs.get(&scope_id)
         );
         // construct the NA packet
         let na_pkt = packets::generate_NA_forwarded(
@@ -154,34 +163,26 @@ impl NDProxy {
             self.na_flag,
         )?;
         // send the packet via send_to()
-        match self.pkt_sender.send_to(
+        self.pkt_sender.send_to(
             na_pkt.packet(),
             &SocketAddrV6::new(ns_origin, 0, 0, scope_id).into(),
-        ) {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                error!(
-                    "NDProxy for {}: [{:?}] failed to send Neighbor Advertisement packet to interface {}.",
-                    self.proxied_prefix,
-                    e,
-                    self.upstream_ifs.get(&scope_id).unwrap_or_else(|| panic!("no upstream iface defined for {}", scope_id)).get_name()
-                );
-                Err(Error::Io(e))
-            }
-        }
+        )?;
+        Ok(())
     }
 
     /// discover neighbors on proxied (downstream) interfaces
     async fn forward_ns_to_downstream(
         &mut self,
-        rewrited_addr: Ipv6Addr,
+        dst_addr: Ipv6Addr,
+        ns_tgt_addr: Ipv6Addr,
         origin_scope_id: u32,
     ) -> Result<(), Error> {
         // logging
         trace!(
-            "NDProxy for {}: Send Neighbour Solicition packet to {}.",
+            "NDProxy for {}: Send Neighbour Solicition packet for {} to {}.",
             self.proxied_prefix,
-            rewrited_addr,
+            ns_tgt_addr,
+            dst_addr
         );
         // send to every interested interface
         for (id, iface) in self.downstream_ifs.iter() {
@@ -189,28 +190,17 @@ impl NDProxy {
                 continue;
             };
 
-            let ns_multicast_addr =
-                address_translation::gen_solicited_node_multicast_address(&rewrited_addr);
-            // construct a packet whose target is the target address
-            let ns_packet2 = packets::generate_NS_packet(
-                iface.get_link_addr(),
-                &ns_multicast_addr,
-                &rewrited_addr,
-                Some(iface.get_hwaddr()),
+            // send unicast NS packet anyways
+            self.pkt_sender.send_to(
+                packets::generate_NS_packet(
+                    iface.get_link_addr(),
+                    &dst_addr,
+                    &ns_tgt_addr,
+                    Some(iface.get_hwaddr()),
+                )?
+                .packet(),
+                &SocketAddrV6::new(dst_addr, 0, 0, *id).into(),
             )?;
-
-            if let Err(e) = self.pkt_sender.send_to(
-                ns_packet2.packet(),
-                &SocketAddrV6::new(ns_multicast_addr, 0, 0, *id).into(),
-            ) {
-                error!(
-                    "NDProxy for {}: [{:?}] failed to send Neighbour Solicition packet to interface {}.",
-                    self.proxied_prefix,
-                    e,
-                    self.downstream_ifs.get(id).unwrap_or_else(|| panic!("no downpstream iface defined for {}", id)).get_name(),
-                );
-                return Err(Error::Io(e));
-            };
         }
         Ok(())
     }
