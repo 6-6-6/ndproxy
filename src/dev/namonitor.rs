@@ -1,9 +1,9 @@
+use crate::conf::TTL_OF_CACHE;
 use crate::error::Error;
 use crate::interfaces::{self, NDInterface};
 use crate::na_monitor::NAMonitor;
+use r_cache::cache::Cache;
 use std::sync::Arc;
-use tokio::sync::Mutex;
-use ttl_cache::TtlCache;
 
 pub async fn namonitor(iface_names: &[String]) -> Result<(), Error> {
     //
@@ -12,7 +12,7 @@ pub async fn namonitor(iface_names: &[String]) -> Result<(), Error> {
         .collect();
     let iface: NDInterface = tmp[0].clone();
     //
-    let neighbors_cache = Arc::new(Mutex::new(TtlCache::new(256)));
+    let neighbors_cache = Arc::new(Cache::new(Some(TTL_OF_CACHE)));
     //
-    NAMonitor::new(iface, neighbors_cache)?.run()
+    NAMonitor::new(iface, neighbors_cache)?.run().await
 }

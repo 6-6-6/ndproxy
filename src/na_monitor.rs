@@ -1,8 +1,8 @@
 use crate::datalink::{PacketReceiver, PacketReceiverOpts};
+use crate::error::Error;
 use crate::interfaces::NDInterface;
 use crate::types::*;
-use crate::{conf, error};
-use log::{trace, warn};
+use log::{warn, debug};
 
 /// monitors for Neighbor Solicitation
 /// the received packet will be sent to the corresponding NDProxy via mpsc
@@ -18,8 +18,8 @@ pub struct NAMonitor {
 }
 
 impl NAMonitor {
-    pub fn new(iface: NDInterface, neighbors_cache: NeighborsCache) -> Result<Self, error::Error> {
-        let inner = PacketReceiver::new();
+    pub fn new(iface: NDInterface, neighbors_cache: NeighborsCache) -> Result<Self, Error> {
+        let inner = PacketReceiver::new()?;
         inner.bind_to_interface(&iface)?;
         inner.set_allmulti(&iface)?;
         inner.set_filter_pass_ipv6_na()?;
@@ -32,9 +32,10 @@ impl NAMonitor {
     }
 
     /// main loop: receive NS packet and forward it to related consumer
-    pub fn run(mut self) -> Result<(), error::Error> {
+    pub async fn run(mut self) -> Result<(), Error> {
         warn!("NAMonitor for {}: Start to work", self.iface.get_name());
-        for packet in self.inner.by_ref() {
+        loop {
+            let packet = self.inner.recv_pkt().await?;
             if packet.len() < 64 {
                 continue;
             };
@@ -47,7 +48,7 @@ impl NAMonitor {
             };
             // logging
             unsafe {
-                trace!(
+                debug!(
                     "NAMonitor for {}: Get a NA from {} to {} advertising 📢{}📢.",
                     self.iface.get_name(),
                     // src_addr
@@ -58,11 +59,7 @@ impl NAMonitor {
                 );
             }
             // update ttl cache
-            self.neighbors_cache
-                .blocking_lock()
-                .insert(*tgt_addr, true, conf::TTL_OF_CACHE);
+            self.neighbors_cache.set(*tgt_addr, true, None);
         }
-
-        Ok(())
     }
 }

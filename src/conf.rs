@@ -34,6 +34,7 @@ pub const ADDRESS_NPT: u8 = 2;
 
 // TODO: magic number or set it in config file?
 pub const TTL_OF_CACHE: Duration = Duration::from_secs(600);
+pub const MPSC_CAPACITY: usize = 1;
 
 impl NDConfig {
     pub fn new(name: String, value: config::Value) -> Result<Self, Error> {
