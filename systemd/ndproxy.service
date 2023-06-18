@@ -4,6 +4,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
+Environment="RUST_LOG=ndproxy=warn"
 Restart=always
 RestartSec=3
 ExecStart=/usr/bin/ndproxy -c /etc/ndproxy.toml
