@@ -90,12 +90,11 @@ impl NDProxy {
             self.send_na_to_upstream(src_addr, *tgt_addr, macaddr, scope_id)
                 .await?
         }
-        Ok(())
+        Err(Error::MpscRecvNone())
     }
 
     async fn run_forward(mut self) -> Result<(), Error> {
-        loop {
-            let (scope_id, tgt_addr, packet) = self.mpsc_receiver.recv().await.unwrap();
+        while let Some((scope_id, tgt_addr, packet)) = self.mpsc_receiver.recv().await {
             // I will not process the pkt,
             // if the scope id does not show up in upstream_ifs
             let macaddr = match self.upstream_ifs.get(&scope_id) {
@@ -140,6 +139,7 @@ impl NDProxy {
                 }
             }
         }
+        Err(Error::MpscRecvNone())
     }
 
     /// construct a NA packet, and send it to upstream

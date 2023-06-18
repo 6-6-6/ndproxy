@@ -73,7 +73,7 @@ enum Commands {
 }
 
 #[cfg(feature = "dev")]
-#[tokio::main]
+#[tokio::main(flavor="current_thread")]
 async fn main() -> Result<(), error::Error> {
     pretty_env_logger::init();
     let args = Args::parse();
