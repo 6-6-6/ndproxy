@@ -1,12 +1,14 @@
-use crate::datalink::{PacketReceiver, PacketReceiverOpts};
+use super::{PacketReceiver, PacketReceiverOpts, PacketSender, PacketSenderOpts};
+use crate::error::Error;
 use crate::interfaces;
+use crate::types::SocketOptTypes;
 use classic_bpf::*;
 use pnet::packet::icmpv6::Icmpv6Types;
 use std::mem::size_of;
 use std::os::unix::io::AsRawFd;
 
 impl PacketReceiverOpts for PacketReceiver {
-    fn bind_to_interface(&self, iface: &interfaces::NDInterface) -> Result<(), i32> {
+    fn bind_to_interface(&self, iface: &interfaces::NDInterface) -> Result<(), Error> {
         let socket_for_iface = libc::sockaddr_ll {
             sll_family: libc::PF_PACKET as u16,
             sll_protocol: (libc::ETH_P_IPV6 as u16).to_be(),
@@ -25,11 +27,11 @@ impl PacketReceiverOpts for PacketReceiver {
             )
         } {
             0 => Ok(()),
-            errno => Err(errno),
+            _errno => Err(Error::SocketOpt(SocketOptTypes::BindToIface)),
         }
     }
 
-    fn set_allmulti(&self, iface: &interfaces::NDInterface) -> Result<(), i32> {
+    fn set_allmulti(&self, iface: &interfaces::NDInterface) -> Result<(), Error> {
         let mut pmr: libc::packet_mreq = unsafe { std::mem::zeroed() };
         pmr.mr_ifindex = *iface.get_scope_id() as i32;
         pmr.mr_type = libc::PACKET_MR_ALLMULTI as u16;
@@ -44,11 +46,11 @@ impl PacketReceiverOpts for PacketReceiver {
             )
         } {
             0 => Ok(()),
-            errno => Err(errno),
+            _errno => Err(Error::SocketOpt(SocketOptTypes::AllMulti)),
         }
     }
 
-    fn set_filter_pass_ipv6_ns(&self) -> Result<(), i32> {
+    fn set_filter_pass_ipv6_ns(&self) -> Result<(), Error> {
         let ipv6_ns_filter = [
             // offsetof(ipv6 header, ipv6 next header)
             BPFFilter::bpf_stmt((BPF_LD | BPF_B | BPF_ABS) as u16, 6),
@@ -71,6 +73,52 @@ impl PacketReceiverOpts for PacketReceiver {
         ];
         let ipv6_socket_fprog = BPFFProg::new(&ipv6_ns_filter);
 
-        ipv6_socket_fprog.attach_filter(self.socket.as_raw_fd())
+        ipv6_socket_fprog
+            .attach_filter(self.socket.as_raw_fd())
+            .map_err(|_| Error::SocketOpt(SocketOptTypes::AttachBPF))
+    }
+
+    fn set_filter_pass_ipv6_na(&self) -> Result<(), Error> {
+        let ipv6_na_filter = [
+            // offsetof(ipv6 header, ipv6 next header)
+            BPFFilter::bpf_stmt((BPF_LD | BPF_B | BPF_ABS) as u16, 6),
+            BPFFilter::bpf_jump(
+                (BPF_JMP | BPF_JEQ | BPF_K) as u16,
+                libc::IPPROTO_ICMPV6 as u32,
+                0,
+                3,
+            ),
+            // sizeof(ipv6 header) + offsetof(icmpv6 header, icmp6_type)
+            BPFFilter::bpf_stmt((BPF_LD | BPF_B | BPF_ABS) as u16, 40 + 0),
+            BPFFilter::bpf_jump(
+                (BPF_JMP | BPF_JEQ | BPF_K) as u16,
+                Icmpv6Types::NeighborAdvert.0 as u32,
+                0,
+                1,
+            ),
+            BPFFilter::bpf_stmt((BPF_RET | BPF_K) as u16, u32::MAX),
+            BPFFilter::bpf_stmt((BPF_RET | BPF_K) as u16, 0),
+        ];
+        let ipv6_socket_fprog = BPFFProg::new(&ipv6_na_filter);
+
+        ipv6_socket_fprog
+            .attach_filter(self.socket.as_raw_fd())
+            .map_err(|_| Error::SocketOpt(SocketOptTypes::AttachBPF))
+    }
+}
+
+impl PacketSenderOpts for PacketSender {
+    fn set_multicast_hops_v6(&self, hops: u32) -> Result<(), Error> {
+        self.socket
+            .get_ref()
+            .set_multicast_hops_v6(hops)
+            .map_err(|_| Error::SocketOpt(SocketOptTypes::SetMultiHop))
+    }
+
+    fn set_unicast_hops_v6(&self, hops: u32) -> Result<(), Error> {
+        self.socket
+            .get_ref()
+            .set_unicast_hops_v6(hops)
+            .map_err(|_| Error::SocketOpt(SocketOptTypes::SetUniHop))
     }
 }

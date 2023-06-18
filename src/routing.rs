@@ -1,12 +1,7 @@
+use crate::types::*;
 use ip_network_table_deps_treebitmap::IpLookupTable;
 use ipnet::Ipv6Net;
-use std::collections::HashMap;
-use std::net::Ipv6Addr;
-use tokio::sync::mpsc;
-
-pub type SharedNSPacket = (u32, Box<Ipv6Addr>, Box<Vec<u8>>);
-pub type SharedNSPacketSender = mpsc::UnboundedSender<SharedNSPacket>;
-pub type SharedNSPacketReceiver = mpsc::UnboundedReceiver<SharedNSPacket>;
+use std::{collections::HashMap, net::Ipv6Addr};
 
 /// create a routing table from a HashMap that stores route entries
 pub fn construst_routing_table(
