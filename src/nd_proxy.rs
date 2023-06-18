@@ -1,4 +1,4 @@
-use crate::conf::{NDConfig, ADDRESS_NETMAP, ADDRESS_NPT, MPSC_CAPACITY, PROXY_STATIC};
+use crate::conf::{NDConfig, ADDRESS_NETMAP, ADDRESS_NPT, PROXY_STATIC, MPSC_CAPACITY};
 use crate::datalink::{PacketSender, PacketSenderOpts};
 use crate::interfaces::{get_ifaces_defined_by_config, NDInterface};
 use crate::types::*;

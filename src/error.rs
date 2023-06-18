@@ -1,6 +1,6 @@
 use crate::types::*;
 use thiserror::Error;
-use tokio::{task::JoinError, io::unix::TryIoError};
+use tokio::task::JoinError;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -18,6 +18,4 @@ pub enum Error {
     PacketGeneration(NDTypes),
     #[error("tokio join error")]
     JoinError(#[from] JoinError),
-    #[error("tokio try io errors")]
-    TokioTryIo(TryIoError),
 }

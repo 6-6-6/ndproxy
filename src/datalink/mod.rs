@@ -29,28 +29,34 @@ pub struct PacketReceiver {
 
 impl PacketReceiver {
     pub fn new() -> Result<Self, Error> {
-        let socket = AsyncFd::new(Socket::new(
-            Domain::PACKET,
-            Type::DGRAM,
-            Some(Protocol::ICMPV6),
-        )?)?;
+        let inner = Socket::new(Domain::PACKET, Type::DGRAM, Some(Protocol::ICMPV6))?;
+        inner.set_nonblocking(true)?;
         let buf = vec![MaybeUninit::<u8>::zeroed(); 1500];
-        Ok(Self { socket, buf })
+        Ok(Self {
+            socket: AsyncFd::new(inner)?,
+            buf,
+        })
     }
 }
 
 impl PacketReceiver {
     pub async fn recv_pkt(&mut self) -> Result<Vec<u8>, Error> {
-        let len = self
-            .socket
-            .readable()
-            .await?
-            .try_io(|socket| socket.get_ref().recv(&mut self.buf))
-            .map_err(Error::TokioTryIo)??;
-        Ok(self.buf[0..len]
-            .iter()
-            .map(|x| unsafe { x.assume_init() })
-            .collect())
+        loop {
+            match self
+                .socket
+                .readable()
+                .await?
+                .try_io(|socket| socket.get_ref().recv(&mut self.buf))
+            {
+                Ok(len) => {
+                    return Ok(self.buf[0..len?]
+                        .iter()
+                        .map(|x| unsafe { x.assume_init() })
+                        .collect())
+                }
+                Err(_) => continue,
+            }
+        }
     }
 }
 
