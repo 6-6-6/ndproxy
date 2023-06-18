@@ -73,22 +73,26 @@ pub struct PacketSender {
 
 impl PacketSender {
     pub fn new() -> Result<Self, Error> {
-        let socket = AsyncFd::new(Socket::new(
-            Domain::IPV6,
-            Type::RAW,
-            Some(Protocol::ICMPV6),
-        )?)?;
-        Ok(Self { socket })
+        let inner = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::ICMPV6))?;
+        inner.set_nonblocking(true)?;
+        Ok(Self {
+            socket: AsyncFd::new(inner)?,
+        })
     }
 }
 
 impl PacketSender {
-    pub async fn send_pkt_to(&self, pkt: &[u8], addr: &SockAddr) -> Result<(), Error> {
-        self.socket
-            .writable()
-            .await?
-            .try_io(|socket| socket.get_ref().send_to(pkt, addr))
-            .map_err(Error::TokioTryIo)??;
-        Ok(())
+    pub async fn send_pkt_to(&self, pkt: &[u8], addr: &SockAddr) -> Result<usize, Error> {
+        loop {
+            match self
+                .socket
+                .writable()
+                .await?
+                .try_io(|socket| socket.get_ref().send_to(pkt, addr))
+            {
+                Ok(len) => return len.map_err(Error::Io),
+                Err(_) => continue,
+            }
+        }
     }
 }
