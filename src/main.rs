@@ -14,6 +14,7 @@ use crate::ns_monitor::NSMonitor;
 use crate::routing::construst_routing_table;
 use conf::TTL_OF_CACHE;
 use futures::future::select_all;
+use futures::FutureExt;
 use r_cache::cache::Cache;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -128,7 +129,7 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
                 )
             }),
         );
-        tasks.push(tokio::spawn(async move { ndproxy.run().await }));
+        tasks.push(ndproxy.run().boxed());
     }
 
     // prepare monitors for Neighbor Solicitations
@@ -136,7 +137,7 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
         .into_values()
         .map(|iface| NSMonitor::new(construst_routing_table(route_map.clone()), iface))
     {
-        tasks.push(tokio::spawn(async move { nsmonitor?.run().await }))
+        tasks.push(nsmonitor?.run().boxed())
     }
 
     // prepare monitors for Neighbor Advertisements
@@ -144,7 +145,7 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
         .into_values()
         .map(|iface| NAMonitor::new(iface, neighbors_cache.clone()))
     {
-        tasks.push(tokio::spawn(async move { namonitor?.run().await }))
+        tasks.push(namonitor?.run().boxed())
     }
 
     // because route_map contains mpsc::Sender, I will drop it to make these Senders unavailable
@@ -153,5 +154,5 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
     drop(neighbors_cache);
 
     // main loop, if any task failed, return the Result and exit?
-    select_all(tasks).await.0?
+    select_all(tasks).await.0
 }
