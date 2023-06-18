@@ -1,3 +1,8 @@
+ndproxy (0.4.0~kyouka) stable; urgency=low
+
+  * upstream updates
+
+ -- Zhang Zongyu <zongyu@novazy.net>  Fri, 18 Jun 2023 10:35:30 +0000
 ndproxy (0.2.3~kyouka) stable; urgency=low
 
   * initial release
