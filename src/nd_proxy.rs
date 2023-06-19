@@ -1,4 +1,4 @@
-use crate::conf::{NDConfig, ADDRESS_NETMAP, ADDRESS_NPT, PROXY_STATIC, MPSC_CAPACITY};
+use crate::conf::{NDConfig, ADDRESS_NETMAP, ADDRESS_NPT, MPSC_CAPACITY, PROXY_STATIC};
 use crate::datalink::{PacketSender, PacketSenderOpts};
 use crate::interfaces::{get_ifaces_defined_by_config, NDInterface};
 use crate::types::*;
@@ -117,26 +117,31 @@ impl NDProxy {
             // send unicast NS anyways
             self.forward_ns_to_downstream(rewrited_addr, rewrited_addr, scope_id)
                 .await?;
+
+            // get the cache
+            let result = self
+                .downstream_ifs
+                .keys()
+                .map(|nei_scope_id| self.neighbors_cache.get(&(*nei_scope_id, rewrited_addr)))
+                .filter(|res| res.is_some())
+                .count();
             // if the neighbors exist in cache, send back the proxied NA
-            match self.neighbors_cache.get(&rewrited_addr) {
-                Some(true) => {
-                    self.send_na_to_upstream(
-                        unsafe { address_translation::construct_v6addr_unchecked(&packet[8..]) },
-                        *tgt_addr,
-                        &macaddr,
-                        scope_id,
-                    )
-                    .await?
-                }
+            if result > 0 {
+                self.send_na_to_upstream(
+                    unsafe { address_translation::construct_v6addr_unchecked(&packet[8..]) },
+                    *tgt_addr,
+                    &macaddr,
+                    scope_id,
+                )
+                .await?
+            } else {
                 // send multicast NS if the neighbor does not exist, and increase the possibility to find it
-                _ => {
-                    self.forward_ns_to_downstream(
-                        address_translation::gen_solicited_node_multicast_address(&rewrited_addr),
-                        rewrited_addr,
-                        scope_id,
-                    )
-                    .await?
-                }
+                self.forward_ns_to_downstream(
+                    address_translation::gen_solicited_node_multicast_address(&rewrited_addr),
+                    rewrited_addr,
+                    scope_id,
+                )
+                .await?
             }
         }
         Err(Error::MpscRecvNone())
