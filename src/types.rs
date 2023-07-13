@@ -1,3 +1,4 @@
+use dashmap::DashMap;
 use r_cache::cache::Cache;
 use std::{net::Ipv6Addr, sync::Arc};
 use tokio::sync::mpsc;
@@ -8,7 +9,8 @@ pub type SharedNSPacketReceiver = mpsc::Receiver<SharedNSPacket>;
 
 /// caches the result of neighbour discovery
 /// u32 is the scope id of the object
-pub type NeighborsCache = Arc<Cache<(u32, Ipv6Addr), ()>>;
+pub type NeighborSource = Cache<u32, ()>;
+pub type NeighborsCache = Arc<DashMap<Ipv6Addr, NeighborSource>>;
 
 #[derive(Debug)]
 pub enum NDTypes {

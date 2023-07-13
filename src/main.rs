@@ -12,10 +12,9 @@ mod types;
 use crate::na_monitor::NAMonitor;
 use crate::ns_monitor::NSMonitor;
 use crate::routing::construst_routing_table;
-use conf::TTL_OF_CACHE;
+use dashmap::DashMap;
 use futures::future::select_all;
 use futures::FutureExt;
-use r_cache::cache::Cache;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -31,7 +30,7 @@ struct Args {
 }
 
 #[cfg(not(feature = "dev"))]
-#[tokio::main(flavor="current_thread")]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), error::Error> {
     pretty_env_logger::init();
     let args = Args::parse();
@@ -74,7 +73,7 @@ enum Commands {
 }
 
 #[cfg(feature = "dev")]
-#[tokio::main(flavor="current_thread")]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), error::Error> {
     pretty_env_logger::init();
     let args = Args::parse();
@@ -107,7 +106,7 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
     let mut monitored_ns_ifaces = HashMap::new();
     let mut monitored_na_ifaces = HashMap::new();
     let mut route_map = std::collections::HashMap::new();
-    let neighbors_cache = Arc::new(Cache::new(Some(TTL_OF_CACHE)));
+    let neighbors_cache = Arc::new(DashMap::new());
 
     // prepare proxies for proxied_prefixes
     let mut tasks = Vec::new();

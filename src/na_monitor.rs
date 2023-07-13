@@ -1,8 +1,10 @@
+use crate::conf::TTL_OF_CACHE;
 use crate::datalink::{PacketReceiver, PacketReceiverOpts};
 use crate::error::Error;
 use crate::interfaces::NDInterface;
 use crate::types::*;
 use log::{debug, warn};
+use r_cache::cache::Cache;
 
 /// monitors for Neighbor Solicitation
 /// the received packet will be sent to the corresponding NDProxy via mpsc
@@ -58,9 +60,16 @@ impl NAMonitor {
                     tgt_addr,
                 );
             }
+
+            if !self.neighbors_cache.contains_key(&tgt_addr) {
+                self.neighbors_cache
+                    .insert(*tgt_addr, Cache::new(Some(TTL_OF_CACHE)));
+            }
             // update ttl cache
-            self.neighbors_cache
-                .set((*self.iface.get_scope_id(), *tgt_addr), (), None);
+            match self.neighbors_cache.get_mut(&tgt_addr) {
+                Some(neighbor_source) => neighbor_source.set(*self.iface.get_scope_id(), (), None),
+                None => return Err(Error::NeighborsCacheError()),
+            };
         }
     }
 }

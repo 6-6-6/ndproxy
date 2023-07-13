@@ -119,14 +119,15 @@ impl NDProxy {
                 .await?;
 
             // get the cache
-            let result = self
-                .downstream_ifs
-                .keys()
-                .map(|nei_scope_id| self.neighbors_cache.get(&(*nei_scope_id, rewrited_addr)))
-                .filter(|res| res.is_some())
-                .count();
+            let result = match self.neighbors_cache.get(&rewrited_addr) {
+                Some(sources_of_addr) => self
+                    .downstream_ifs
+                    .keys()
+                    .any(|v| sources_of_addr.get(v).is_some()),
+                None => false,
+            };
             // if the neighbors exist in cache, send back the proxied NA
-            if result > 0 {
+            if result {
                 self.send_na_to_upstream(
                     unsafe { address_translation::construct_v6addr_unchecked(&packet[8..]) },
                     *tgt_addr,
