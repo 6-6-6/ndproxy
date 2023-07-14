@@ -7,7 +7,7 @@ pub struct NDConfig {
     #[get = "pub with_prefix"]
     name: String,
     #[get = "pub with_prefix"]
-    proxy_type: u8,
+    proxy_type: Proxy,
     #[get = "pub with_prefix"]
     proxied_pfx: Ipv6Net,
     #[get = "pub with_prefix"]
@@ -25,8 +25,11 @@ const ADDRESS_NETMAP_STRING: &str = "netmap";
 const ADDRESS_NPT_STRING: &str = "npt";
 
 // proxy types
-pub const PROXY_STATIC: u8 = 0;
-pub const PROXY_FORWARD: u8 = 1;
+#[derive(Debug, std::cmp::PartialEq, Clone, Copy)]
+pub enum Proxy {
+    Static,
+    Forward,
+}
 // address mangling methods
 pub const ADDRESS_NOCHANGE: u8 = 0;
 pub const ADDRESS_NETMAP: u8 = 1;
@@ -46,9 +49,9 @@ impl NDConfig {
         let proxy_type_string = config_table.remove("type").unwrap().into_string()?;
 
         let proxy_type = if proxy_type_string == PROXY_FORWARD_STRING {
-            PROXY_FORWARD
+            Proxy::Forward
         } else {
-            PROXY_STATIC
+            Proxy::Static
         };
 
         /*
@@ -82,16 +85,19 @@ impl NDConfig {
          * get the interfaces whose Neighbor Advertisements are proxied by me
          * if it is not specified, I will listen on all of the interfaces
          */
-        let forwarded_ifaces = match config_table.remove("forwarded_ifaces") {
-            Some(v) => match v.clone().into_array() {
-                Ok(if_vec) => if_vec
-                    .into_iter()
-                    // TODO: at leaset leave some messages here
-                    .map(|iface| iface.into_string().unwrap())
-                    .collect(),
-                Err(_) => vec![v.into_string()?],
+        let forwarded_ifaces = match proxy_type {
+            Proxy::Static => [].into(),
+            Proxy::Forward => match config_table.remove("forwarded_ifaces") {
+                Some(v) => match v.clone().into_array() {
+                    Ok(if_vec) => if_vec
+                        .into_iter()
+                        // TODO: at leaset leave some messages here
+                        .map(|iface| iface.into_string().unwrap())
+                        .collect(),
+                    Err(_) => vec![v.into_string()?],
+                },
+                None => vec![String::from("*")],
             },
-            None => vec![String::from("*")],
         };
 
         /*
@@ -174,7 +180,7 @@ fn test_config_parser() {
 
     let result1 = NDConfig {
         name: "conf1".to_string(),
-        proxy_type: 1,
+        proxy_type: Proxy::Forward,
         proxied_pfx: "2001:db8::/64".parse().unwrap(),
         proxied_ifaces: vec![String::from("*")],
         forwarded_ifaces: vec![String::from("*")],
@@ -183,7 +189,7 @@ fn test_config_parser() {
     };
     let result2 = NDConfig {
         name: "conf2".to_string(),
-        proxy_type: 0,
+        proxy_type: Proxy::Forward,
         proxied_pfx: "2001:db8::/64".parse().unwrap(),
         proxied_ifaces: vec![String::from("lo")],
         forwarded_ifaces: vec![String::from("veth0")],
@@ -192,10 +198,10 @@ fn test_config_parser() {
     };
     let result3 = NDConfig {
         name: "conf3".to_string(),
-        proxy_type: 0,
+        proxy_type: Proxy::Static,
         proxied_pfx: "2001:db8::/64".parse().unwrap(),
         proxied_ifaces: vec![String::from("lo"), String::from("eth0")],
-        forwarded_ifaces: vec![String::from("veth0")],
+        forwarded_ifaces: vec![],
         address_mangling: ADDRESS_NPT,
         dst_pfx: "2001:db9::/64".parse().unwrap(),
     };

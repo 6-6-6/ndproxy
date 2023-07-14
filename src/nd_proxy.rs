@@ -1,4 +1,4 @@
-use crate::conf::{NDConfig, ADDRESS_NETMAP, ADDRESS_NPT, MPSC_CAPACITY, PROXY_STATIC};
+use crate::conf::{NDConfig, Proxy, ADDRESS_NETMAP, ADDRESS_NPT, MPSC_CAPACITY};
 use crate::datalink::{PacketSender, PacketSenderOpts};
 use crate::interfaces::{get_ifaces_defined_by_config, NDInterface};
 use crate::types::*;
@@ -18,7 +18,7 @@ use tokio::sync::mpsc;
 ///          3. send Neighbor Advertisement to upstream interface that sent the NS packet
 #[derive(getset::Getters, getset::MutGetters)]
 pub struct NDProxy {
-    proxy_type: u8,
+    proxy_type: Proxy,
     #[get = "pub with_prefix"]
     proxied_prefix: Ipv6Net,
     /// for reducing computations
@@ -74,8 +74,8 @@ impl NDProxy {
         drop(self.mpsc_sender.take());
         warn!("NDProxy for {}: Start to work.", self.proxied_prefix);
         match self.proxy_type {
-            PROXY_STATIC => self.run_static().await,
-            _ => self.run_forward().await,
+            Proxy::Static => self.run_static().await,
+            Proxy::Forward => self.run_forward().await,
         }
     }
 

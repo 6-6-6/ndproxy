@@ -1,6 +1,6 @@
 [ndp]
 [ndp.conf2]
-type = "static"
+type = "forward"
 proxied_prefix = "2001:db8::/64"
 proxied_ifaces = "lo"
 forwarded_ifaces = "veth0"
