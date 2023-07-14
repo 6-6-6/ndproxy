@@ -15,7 +15,7 @@ pub struct NDConfig {
     #[get = "pub with_prefix"]
     forwarded_ifaces: Vec<String>,
     #[get = "pub with_prefix"]
-    address_mangling: u8,
+    address_mangling: AddressMangling,
     #[get = "pub with_prefix"]
     dst_pfx: Ipv6Net,
 }
@@ -31,9 +31,12 @@ pub enum Proxy {
     Forward,
 }
 // address mangling methods
-pub const ADDRESS_NOCHANGE: u8 = 0;
-pub const ADDRESS_NETMAP: u8 = 1;
-pub const ADDRESS_NPT: u8 = 2;
+#[derive(Debug, std::cmp::PartialEq, Clone, Copy)]
+pub enum AddressMangling {
+    Nochange,
+    Netmap,
+    Npt,
+}
 
 // TODO: magic number or set it in config file?
 pub const TTL_OF_CACHE: Duration = Duration::from_secs(600);
@@ -115,8 +118,8 @@ impl NDConfig {
          * rewrite = "fec1:2:3:4::/64"
          * ```
          */
-        let dst_pfx: Ipv6Net;
-        let address_mangling: u8;
+        let dst_pfx;
+        let address_mangling;
         match config_table.remove("rewrite_method") {
             Some(v) => {
                 let how_to_mangle = v.into_string()?;
@@ -126,16 +129,16 @@ impl NDConfig {
                     .into_string()?
                     .parse()?;
                 if how_to_mangle == ADDRESS_NETMAP_STRING {
-                    address_mangling = ADDRESS_NETMAP;
+                    address_mangling = AddressMangling::Netmap;
                 } else if how_to_mangle == ADDRESS_NPT_STRING {
-                    address_mangling = ADDRESS_NPT;
+                    address_mangling = AddressMangling::Npt;
                 } else {
-                    address_mangling = ADDRESS_NOCHANGE;
+                    address_mangling = AddressMangling::Nochange;
                 }
             }
             None => {
                 dst_pfx = proxied_pfx;
-                address_mangling = ADDRESS_NOCHANGE;
+                address_mangling = AddressMangling::Nochange;
             }
         }
 
@@ -184,7 +187,7 @@ fn test_config_parser() {
         proxied_pfx: "2001:db8::/64".parse().unwrap(),
         proxied_ifaces: vec![String::from("*")],
         forwarded_ifaces: vec![String::from("*")],
-        address_mangling: ADDRESS_NOCHANGE,
+        address_mangling: AddressMangling::Nochange,
         dst_pfx: "2001:db8::/64".parse().unwrap(),
     };
     let result2 = NDConfig {
@@ -193,7 +196,7 @@ fn test_config_parser() {
         proxied_pfx: "2001:db8::/64".parse().unwrap(),
         proxied_ifaces: vec![String::from("lo")],
         forwarded_ifaces: vec![String::from("veth0")],
-        address_mangling: ADDRESS_NETMAP,
+        address_mangling: AddressMangling::Netmap,
         dst_pfx: "2001:db9::/64".parse().unwrap(),
     };
     let result3 = NDConfig {
@@ -202,7 +205,7 @@ fn test_config_parser() {
         proxied_pfx: "2001:db8::/64".parse().unwrap(),
         proxied_ifaces: vec![String::from("lo"), String::from("eth0")],
         forwarded_ifaces: vec![],
-        address_mangling: ADDRESS_NPT,
+        address_mangling: AddressMangling::Npt,
         dst_pfx: "2001:db9::/64".parse().unwrap(),
     };
 

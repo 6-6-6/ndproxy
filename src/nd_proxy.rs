@@ -1,4 +1,4 @@
-use crate::conf::{NDConfig, Proxy, ADDRESS_NETMAP, ADDRESS_NPT, MPSC_CAPACITY};
+use crate::conf::{AddressMangling, NDConfig, Proxy, MPSC_CAPACITY};
 use crate::datalink::{PacketSender, PacketSenderOpts};
 use crate::interfaces::{get_ifaces_defined_by_config, NDInterface};
 use crate::types::*;
@@ -23,7 +23,7 @@ pub struct NDProxy {
     proxied_prefix: Ipv6Net,
     /// for reducing computations
     proxied_prefix_csum: u16,
-    address_mangling: u8,
+    address_mangling: AddressMangling,
     rewrite_prefix: Ipv6Net,
     /// for reducing computations
     rewrite_prefix_csum: u16,
@@ -104,14 +104,16 @@ impl NDProxy {
 
             // rewrite the target address if needed
             let rewrited_addr = match self.address_mangling {
-                ADDRESS_NETMAP => address_translation::netmapv6(*tgt_addr, &self.rewrite_prefix),
-                ADDRESS_NPT => address_translation::nptv6(
+                AddressMangling::Netmap => {
+                    address_translation::netmapv6(*tgt_addr, &self.rewrite_prefix)
+                }
+                AddressMangling::Npt => address_translation::nptv6(
                     self.proxied_prefix_csum,
                     self.rewrite_prefix_csum,
                     *tgt_addr,
                     &self.rewrite_prefix,
                 ),
-                _ => *tgt_addr,
+                AddressMangling::Nochange => *tgt_addr,
             };
 
             // send unicast NS anyways
