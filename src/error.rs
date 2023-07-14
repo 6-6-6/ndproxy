@@ -20,6 +20,4 @@ pub enum Error {
     PacketGeneration(NDTypes),
     #[error("tokio join error")]
     JoinError(#[from] JoinError),
-    #[error("Neighbors Cache: Cache item does not exist.")]
-    NeighborsCacheError(),
 }

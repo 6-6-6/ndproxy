@@ -12,9 +12,10 @@ mod types;
 use crate::na_monitor::NAMonitor;
 use crate::ns_monitor::NSMonitor;
 use crate::routing::construst_routing_table;
-use dashmap::DashMap;
+use conf::TTL_OF_CACHE;
 use futures::future::select_all;
 use futures::FutureExt;
+use r_cache::cache::Cache;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -106,7 +107,7 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
     let mut monitored_ns_ifaces = HashMap::new();
     let mut monitored_na_ifaces = HashMap::new();
     let mut route_map = std::collections::HashMap::new();
-    let neighbors_cache = Arc::new(DashMap::new());
+    let neighbors_cache = Arc::new(Cache::new(Some(TTL_OF_CACHE)));
 
     // prepare proxies for proxied_prefixes
     let mut tasks = Vec::new();

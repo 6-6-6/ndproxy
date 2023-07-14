@@ -119,30 +119,31 @@ impl NDProxy {
                 .await?;
 
             // get the cache
-            let result = match self.neighbors_cache.get(&rewrited_addr) {
-                Some(sources_of_addr) => self
-                    .downstream_ifs
-                    .keys()
-                    .any(|v| sources_of_addr.get(v).is_some()),
-                None => false,
-            };
-            // if the neighbors exist in cache, send back the proxied NA
-            if result {
-                self.send_na_to_upstream(
-                    unsafe { address_translation::construct_v6addr_unchecked(&packet[8..]) },
-                    *tgt_addr,
-                    &macaddr,
-                    scope_id,
-                )
-                .await?
-            } else {
-                // send multicast NS if the neighbor does not exist, and increase the possibility to find it
-                self.forward_ns_to_downstream(
-                    address_translation::gen_solicited_node_multicast_address(&rewrited_addr),
-                    rewrited_addr,
-                    scope_id,
-                )
-                .await?
+            match self
+                .downstream_ifs
+                .keys()
+                .map(|nei_scope_id| self.neighbors_cache.get(&(*nei_scope_id, rewrited_addr)))
+                .any(|res| res.is_some())
+            {
+                true => {
+                    // if the neighbors exist in cache, send back the proxied NA
+                    self.send_na_to_upstream(
+                        unsafe { address_translation::construct_v6addr_unchecked(&packet[8..]) },
+                        *tgt_addr,
+                        &macaddr,
+                        scope_id,
+                    )
+                    .await?
+                }
+                false => {
+                    // send multicast NS if the neighbor does not exist, and increase the possibility to find it
+                    self.forward_ns_to_downstream(
+                        address_translation::gen_solicited_node_multicast_address(&rewrited_addr),
+                        rewrited_addr,
+                        scope_id,
+                    )
+                    .await?
+                }
             }
         }
         Err(Error::MpscRecvNone())
