@@ -1,8 +1,9 @@
 use crate::error::Error;
+use crate::types::{AddressMangling, Proxy};
 use ipnet::Ipv6Net;
 use std::time::Duration;
 
-#[derive(getset::Getters, Debug, std::cmp::PartialEq, Clone)]
+#[derive(getset::Getters, Debug, PartialEq, Eq, Clone)]
 pub struct NDConfig {
     #[get = "pub with_prefix"]
     name: String,
@@ -23,20 +24,6 @@ pub struct NDConfig {
 const PROXY_FORWARD_STRING: &str = "forward";
 const ADDRESS_NETMAP_STRING: &str = "netmap";
 const ADDRESS_NPT_STRING: &str = "npt";
-
-// proxy types
-#[derive(Debug, std::cmp::PartialEq, Clone, Copy)]
-pub enum Proxy {
-    Static,
-    Forward,
-}
-// address mangling methods
-#[derive(Debug, std::cmp::PartialEq, Clone, Copy)]
-pub enum AddressMangling {
-    Nochange,
-    Netmap,
-    Npt,
-}
 
 // TODO: magic number or set it in config file?
 pub const TTL_OF_CACHE: Duration = Duration::from_secs(600);
