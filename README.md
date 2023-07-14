@@ -8,15 +8,14 @@ Any ideas and issues are welcome.
 
 ## usage
 ```
-Usage:
-  ./ndproxy [OPTIONS]
+Proxying Neighbor Discovery packets among interfaces.
 
-proxies your neighbor discovery messages.
+Usage: ndproxy [OPTIONS]
 
-Optional arguments:
-  -h,--help             Show this help message and exit
-  -c,--conf CONF        The location of your config file. Default:
-                        ./ndproxy.toml
+Options:
+  -c, --config <CONFIG>  path to config file [default: /etc/ndproxy.toml]
+  -h, --help             Print help
+  -V, --version          Print version
 ```
 
 You can find an example of configuration file [here](https://github.com/6-6-6/ndproxy/blob/master/example.config.toml).
