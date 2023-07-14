@@ -31,7 +31,7 @@ struct Args {
 }
 
 #[cfg(not(feature = "dev"))]
-#[tokio::main(flavor="current_thread")]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), error::Error> {
     pretty_env_logger::init();
     let args = Args::parse();
@@ -74,7 +74,7 @@ enum Commands {
 }
 
 #[cfg(feature = "dev")]
-#[tokio::main(flavor="current_thread")]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), error::Error> {
     pretty_env_logger::init();
     let args = Args::parse();
