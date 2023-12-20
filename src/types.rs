@@ -26,3 +26,28 @@ pub enum SocketOptTypes {
     #[cfg(feature = "dev")]
     SocketGeneration,
 }
+
+// proxy types
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Proxy {
+    Static,
+    Forward,
+}
+
+// address mangling methods
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum AddressMangling {
+    Nochange,
+    Netmap,
+    Npt,
+}
+
+#[test]
+fn test_my_enums() {
+    assert!(AddressMangling::Netmap == AddressMangling::Netmap);
+    assert!(AddressMangling::Netmap != AddressMangling::Nochange);
+    assert!(AddressMangling::Netmap != AddressMangling::Npt);
+
+    assert!(Proxy::Static == Proxy::Static);
+    assert!(Proxy::Static != Proxy::Forward);
+}
