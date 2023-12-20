@@ -1,13 +1,13 @@
-mod conf;
-mod datalink;
-mod error;
-mod interfaces;
-mod na_monitor;
-mod nd_proxy;
-mod ns_monitor;
-mod packets;
-mod routing;
-mod types;
+mod conf; // config file
+mod datalink; // about sending and receiving pkts
+mod error; // error types
+mod interfaces; // find interface by name / config
+mod na_monitor; // monitoring NA pkts
+mod nd_proxy; // main process?
+mod ns_monitor; // monitoring NS pkts
+mod packets; // about encoding/decoding pkts
+mod routing; // a _route_ table
+mod types; // self-defined types
 
 use crate::na_monitor::NAMonitor;
 use crate::ns_monitor::NSMonitor;
@@ -31,7 +31,7 @@ struct Args {
 }
 
 #[cfg(not(feature = "dev"))]
-#[tokio::main(flavor="current_thread")]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), error::Error> {
     pretty_env_logger::init();
     let args = Args::parse();
@@ -74,7 +74,7 @@ enum Commands {
 }
 
 #[cfg(feature = "dev")]
-#[tokio::main(flavor="current_thread")]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), error::Error> {
     pretty_env_logger::init();
     let args = Args::parse();

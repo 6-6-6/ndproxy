@@ -3,7 +3,7 @@ use crate::error::Error;
 use crate::interfaces::NDInterface;
 use crate::types::SharedNSPacketSender;
 use ip_network_table_deps_treebitmap::IpLookupTable;
-use log::{error, trace, warn, debug};
+use log::{debug, error, trace, warn};
 use std::net::Ipv6Addr;
 
 /// monitors for Neighbor Solicitation
@@ -79,7 +79,10 @@ impl NSMonitor {
                     continue;
                 };
                 //
-                if let Err(e) = sender.send((*self.iface.get_scope_id(), tgt_addr, shared_packet)).await {
+                if let Err(e) = sender
+                    .send((*self.iface.get_scope_id(), tgt_addr, shared_packet))
+                    .await
+                {
                     error!("NSMonitor for {}: _{:?}_ Failed to send the packet to its corresponding proxy.",
                         self.iface.get_name(),
                         e);

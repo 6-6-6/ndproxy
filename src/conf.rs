@@ -1,13 +1,14 @@
 use crate::error::Error;
+use crate::types::{AddressMangling, Proxy};
 use ipnet::Ipv6Net;
 use std::time::Duration;
 
-#[derive(getset::Getters, Debug, std::cmp::PartialEq, Clone)]
+#[derive(getset::Getters, Debug, PartialEq, Eq, Clone)]
 pub struct NDConfig {
     #[get = "pub with_prefix"]
     name: String,
     #[get = "pub with_prefix"]
-    proxy_type: u8,
+    proxy_type: Proxy,
     #[get = "pub with_prefix"]
     proxied_pfx: Ipv6Net,
     #[get = "pub with_prefix"]
@@ -15,7 +16,7 @@ pub struct NDConfig {
     #[get = "pub with_prefix"]
     forwarded_ifaces: Vec<String>,
     #[get = "pub with_prefix"]
-    address_mangling: u8,
+    address_mangling: AddressMangling,
     #[get = "pub with_prefix"]
     dst_pfx: Ipv6Net,
 }
@@ -23,14 +24,6 @@ pub struct NDConfig {
 const PROXY_FORWARD_STRING: &str = "forward";
 const ADDRESS_NETMAP_STRING: &str = "netmap";
 const ADDRESS_NPT_STRING: &str = "npt";
-
-// proxy types
-pub const PROXY_STATIC: u8 = 0;
-pub const PROXY_FORWARD: u8 = 1;
-// address mangling methods
-pub const ADDRESS_NOCHANGE: u8 = 0;
-pub const ADDRESS_NETMAP: u8 = 1;
-pub const ADDRESS_NPT: u8 = 2;
 
 // TODO: magic number or set it in config file?
 pub const TTL_OF_CACHE: Duration = Duration::from_secs(600);
@@ -46,9 +39,9 @@ impl NDConfig {
         let proxy_type_string = config_table.remove("type").unwrap().into_string()?;
 
         let proxy_type = if proxy_type_string == PROXY_FORWARD_STRING {
-            PROXY_FORWARD
+            Proxy::Forward
         } else {
-            PROXY_STATIC
+            Proxy::Static
         };
 
         /*
@@ -82,16 +75,19 @@ impl NDConfig {
          * get the interfaces whose Neighbor Advertisements are proxied by me
          * if it is not specified, I will listen on all of the interfaces
          */
-        let forwarded_ifaces = match config_table.remove("forwarded_ifaces") {
-            Some(v) => match v.clone().into_array() {
-                Ok(if_vec) => if_vec
-                    .into_iter()
-                    // TODO: at leaset leave some messages here
-                    .map(|iface| iface.into_string().unwrap())
-                    .collect(),
-                Err(_) => vec![v.into_string()?],
+        let forwarded_ifaces = match proxy_type {
+            Proxy::Static => [].into(),
+            Proxy::Forward => match config_table.remove("forwarded_ifaces") {
+                Some(v) => match v.clone().into_array() {
+                    Ok(if_vec) => if_vec
+                        .into_iter()
+                        // TODO: at leaset leave some messages here
+                        .map(|iface| iface.into_string().unwrap())
+                        .collect(),
+                    Err(_) => vec![v.into_string()?],
+                },
+                None => vec![String::from("*")],
             },
-            None => vec![String::from("*")],
         };
 
         /*
@@ -109,8 +105,8 @@ impl NDConfig {
          * rewrite = "fec1:2:3:4::/64"
          * ```
          */
-        let dst_pfx: Ipv6Net;
-        let address_mangling: u8;
+        let dst_pfx;
+        let address_mangling;
         match config_table.remove("rewrite_method") {
             Some(v) => {
                 let how_to_mangle = v.into_string()?;
@@ -120,16 +116,16 @@ impl NDConfig {
                     .into_string()?
                     .parse()?;
                 if how_to_mangle == ADDRESS_NETMAP_STRING {
-                    address_mangling = ADDRESS_NETMAP;
+                    address_mangling = AddressMangling::Netmap;
                 } else if how_to_mangle == ADDRESS_NPT_STRING {
-                    address_mangling = ADDRESS_NPT;
+                    address_mangling = AddressMangling::Npt;
                 } else {
-                    address_mangling = ADDRESS_NOCHANGE;
+                    address_mangling = AddressMangling::Nochange;
                 }
             }
             None => {
                 dst_pfx = proxied_pfx;
-                address_mangling = ADDRESS_NOCHANGE;
+                address_mangling = AddressMangling::Nochange;
             }
         }
 
@@ -174,29 +170,29 @@ fn test_config_parser() {
 
     let result1 = NDConfig {
         name: "conf1".to_string(),
-        proxy_type: 1,
+        proxy_type: Proxy::Forward,
         proxied_pfx: "2001:db8::/64".parse().unwrap(),
         proxied_ifaces: vec![String::from("*")],
         forwarded_ifaces: vec![String::from("*")],
-        address_mangling: ADDRESS_NOCHANGE,
+        address_mangling: AddressMangling::Nochange,
         dst_pfx: "2001:db8::/64".parse().unwrap(),
     };
     let result2 = NDConfig {
         name: "conf2".to_string(),
-        proxy_type: 0,
+        proxy_type: Proxy::Forward,
         proxied_pfx: "2001:db8::/64".parse().unwrap(),
         proxied_ifaces: vec![String::from("lo")],
         forwarded_ifaces: vec![String::from("veth0")],
-        address_mangling: ADDRESS_NETMAP,
+        address_mangling: AddressMangling::Netmap,
         dst_pfx: "2001:db9::/64".parse().unwrap(),
     };
     let result3 = NDConfig {
         name: "conf3".to_string(),
-        proxy_type: 0,
+        proxy_type: Proxy::Static,
         proxied_pfx: "2001:db8::/64".parse().unwrap(),
         proxied_ifaces: vec![String::from("lo"), String::from("eth0")],
-        forwarded_ifaces: vec![String::from("veth0")],
-        address_mangling: ADDRESS_NPT,
+        forwarded_ifaces: vec![],
+        address_mangling: AddressMangling::Npt,
         dst_pfx: "2001:db9::/64".parse().unwrap(),
     };
 

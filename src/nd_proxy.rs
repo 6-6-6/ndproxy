@@ -1,4 +1,4 @@
-use crate::conf::{NDConfig, ADDRESS_NETMAP, ADDRESS_NPT, PROXY_STATIC, MPSC_CAPACITY};
+use crate::conf::{NDConfig, MPSC_CAPACITY};
 use crate::datalink::{PacketSender, PacketSenderOpts};
 use crate::interfaces::{get_ifaces_defined_by_config, NDInterface};
 use crate::types::*;
@@ -18,12 +18,12 @@ use tokio::sync::mpsc;
 ///          3. send Neighbor Advertisement to upstream interface that sent the NS packet
 #[derive(getset::Getters, getset::MutGetters)]
 pub struct NDProxy {
-    proxy_type: u8,
+    proxy_type: Proxy,
     #[get = "pub with_prefix"]
     proxied_prefix: Ipv6Net,
     /// for reducing computations
     proxied_prefix_csum: u16,
-    address_mangling: u8,
+    address_mangling: AddressMangling,
     rewrite_prefix: Ipv6Net,
     /// for reducing computations
     rewrite_prefix_csum: u16,
@@ -74,8 +74,8 @@ impl NDProxy {
         drop(self.mpsc_sender.take());
         warn!("NDProxy for {}: Start to work.", self.proxied_prefix);
         match self.proxy_type {
-            PROXY_STATIC => self.run_static().await,
-            _ => self.run_forward().await,
+            Proxy::Static => self.run_static().await,
+            Proxy::Forward => self.run_forward().await,
         }
     }
 
@@ -104,22 +104,31 @@ impl NDProxy {
 
             // rewrite the target address if needed
             let rewrited_addr = match self.address_mangling {
-                ADDRESS_NETMAP => address_translation::netmapv6(*tgt_addr, &self.rewrite_prefix),
-                ADDRESS_NPT => address_translation::nptv6(
+                AddressMangling::Netmap => {
+                    address_translation::netmapv6(*tgt_addr, &self.rewrite_prefix)
+                }
+                AddressMangling::Npt => address_translation::nptv6(
                     self.proxied_prefix_csum,
                     self.rewrite_prefix_csum,
                     *tgt_addr,
                     &self.rewrite_prefix,
                 ),
-                _ => *tgt_addr,
+                AddressMangling::Nochange => *tgt_addr,
             };
 
             // send unicast NS anyways
             self.forward_ns_to_downstream(rewrited_addr, rewrited_addr, scope_id)
                 .await?;
-            // if the neighbors exist in cache, send back the proxied NA
-            match self.neighbors_cache.get(&rewrited_addr) {
-                Some(true) => {
+
+            // get the cache
+            match self
+                .downstream_ifs
+                .keys()
+                .map(|nei_scope_id| self.neighbors_cache.get(&(*nei_scope_id, rewrited_addr)))
+                .any(|res| res.is_some())
+            {
+                true => {
+                    // if the neighbors exist in cache, send back the proxied NA
                     self.send_na_to_upstream(
                         unsafe { address_translation::construct_v6addr_unchecked(&packet[8..]) },
                         *tgt_addr,
@@ -128,8 +137,8 @@ impl NDProxy {
                     )
                     .await?
                 }
-                // send multicast NS if the neighbor does not exist, and increase the possibility to find it
-                _ => {
+                false => {
+                    // send multicast NS if the neighbor does not exist, and increase the possibility to find it
                     self.forward_ns_to_downstream(
                         address_translation::gen_solicited_node_multicast_address(&rewrited_addr),
                         rewrited_addr,
