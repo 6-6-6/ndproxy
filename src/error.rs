@@ -19,5 +19,5 @@ pub enum Error {
     #[error("NA/NS packet generation error")]
     PacketGeneration(NDTypes),
     #[error("tokio join error")]
-    JoinError(#[from] JoinError),
+    JoinErrorTokio(#[from] JoinError),
 }
