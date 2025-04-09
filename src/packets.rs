@@ -1,6 +1,6 @@
-use pnet::packet::icmpv6::ndp::{MutableNeighborSolicitPacket, NeighborSolicitPacket};
-use pnet::packet::icmpv6::{ndp, Icmpv6Types};
 use pnet::packet::Packet;
+use pnet::packet::icmpv6::ndp::{MutableNeighborSolicitPacket, NeighborSolicitPacket};
+use pnet::packet::icmpv6::{Icmpv6Types, ndp};
 use pnet::util::MacAddr;
 use std::net::Ipv6Addr;
 

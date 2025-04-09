@@ -3,7 +3,7 @@ use crate::error::Error;
 use crate::interfaces;
 use crate::ns_monitor::NSMonitor;
 use crate::routing::construst_routing_table;
-use futures::future::{select, select_all, FutureExt};
+use futures::future::{FutureExt, select, select_all};
 use ipnet::Ipv6Net;
 use tokio::sync::mpsc;
 

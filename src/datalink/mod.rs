@@ -51,7 +51,7 @@ impl PacketReceiver {
                     return Ok(self.buf[0..len?]
                         .iter()
                         .map(|x| unsafe { x.assume_init() })
-                        .collect())
+                        .collect());
                 }
                 Err(_) => continue,
             }

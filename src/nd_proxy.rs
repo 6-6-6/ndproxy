@@ -1,6 +1,6 @@
-use crate::conf::{NDConfig, MPSC_CAPACITY};
+use crate::conf::{MPSC_CAPACITY, NDConfig};
 use crate::datalink::{PacketSender, PacketSenderOpts};
-use crate::interfaces::{get_ifaces_defined_by_config, NDInterface};
+use crate::interfaces::{NDInterface, get_ifaces_defined_by_config};
 use crate::types::*;
 use crate::{error::Error, packets};
 use ipnet::Ipv6Net;
@@ -194,9 +194,7 @@ impl NDProxy {
         // logging
         trace!(
             "NDProxy for {}: Send Neighbour Solicition packet for {} to {}.",
-            self.proxied_prefix,
-            ns_tgt_addr,
-            dst_addr
+            self.proxied_prefix, ns_tgt_addr, dst_addr
         );
         // send to every interested interface
         for (id, iface) in self.downstream_ifs.iter() {
