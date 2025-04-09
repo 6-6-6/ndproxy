@@ -83,9 +83,11 @@ impl NSMonitor {
                     .send((*self.iface.get_scope_id(), tgt_addr, shared_packet))
                     .await
                 {
-                    error!("NSMonitor for {}: _{:?}_ Failed to send the packet to its corresponding proxy.",
+                    error!(
+                        "NSMonitor for {}: _{:?}_ Failed to send the packet to its corresponding proxy.",
                         self.iface.get_name(),
-                        e);
+                        e
+                    );
                     return Err(Error::Mpsc(e));
                 };
             }

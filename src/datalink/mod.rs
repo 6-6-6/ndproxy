@@ -1,6 +1,5 @@
 //#[cfg(target_os = "linux")]
 mod linux;
-pub use linux::*;
 
 use crate::error::Error;
 use crate::interfaces;
@@ -52,7 +51,7 @@ impl PacketReceiver {
                     return Ok(self.buf[0..len?]
                         .iter()
                         .map(|x| unsafe { x.assume_init() })
-                        .collect())
+                        .collect());
                 }
                 Err(_) => continue,
             }

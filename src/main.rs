@@ -13,8 +13,8 @@ use crate::na_monitor::NAMonitor;
 use crate::ns_monitor::NSMonitor;
 use crate::routing::construst_routing_table;
 use conf::TTL_OF_CACHE;
-use futures::future::select_all;
 use futures::FutureExt;
+use futures::future::select_all;
 use r_cache::cache::Cache;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -122,7 +122,7 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
         // route prefix to its corresponding ndproxy
         route_map.insert(
             *ndproxy.get_proxied_prefix(),
-            ndproxy.mpsc_sender_mut().take().unwrap_or_else(|| {
+            ndproxy.get_mpsc_sender_mut().take().unwrap_or_else(|| {
                 panic!(
                     "cannot take mpsc sender from ndproxy of {}",
                     ndproxy.get_proxied_prefix()
