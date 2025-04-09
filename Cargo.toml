@@ -1,6 +1,6 @@
 [package]
 name = "ndproxy"
-version = "0.4.2"
+version = "0.4.3-dev"
 authors = ["Zhang Zongyu <zongyu@novazy.net>"]
 edition = "2024"
 license = "MIT"
