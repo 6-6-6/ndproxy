@@ -32,7 +32,7 @@ impl PacketReceiver {
         inner.set_nonblocking(true)?;
         let buf = vec![MaybeUninit::<u8>::zeroed(); 1500];
         Ok(Self {
-            socket: AsyncFd::new(inner)?,
+            socket: unsafe { AsyncFd::register(inner) }.map_err(std::io::Error::from)?,
             buf,
         })
     }
@@ -75,7 +75,7 @@ impl PacketSender {
         let inner = Socket::new(Domain::IPV6, Type::RAW, Some(Protocol::ICMPV6))?;
         inner.set_nonblocking(true)?;
         Ok(Self {
-            socket: AsyncFd::new(inner)?,
+            socket: unsafe { AsyncFd::register(inner) }.map_err(std::io::Error::from)?,
         })
     }
 }
