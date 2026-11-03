@@ -12,7 +12,7 @@ mod types; // self-defined types
 use crate::na_monitor::NAMonitor;
 use crate::ns_monitor::NSMonitor;
 use crate::routing::construst_routing_table;
-use conf::TTL_OF_CACHE;
+use conf::{TTL_OF_CACHE, TTL_OF_CACHE_GC};
 use futures::FutureExt;
 use futures::future::select_all;
 use r_cache::cache::Cache;
@@ -146,6 +146,20 @@ async fn ndproxy_main(config_filename: String) -> Result<(), error::Error> {
         .map(|iface| NAMonitor::new(iface, neighbors_cache.clone()))
     {
         tasks.push(namonitor?.run().boxed())
+    }
+
+    // remove expired cache entries every hour
+    if !tasks.is_empty() {
+        let cache = neighbors_cache.clone();
+        tasks.push(
+            async move {
+                loop {
+                    tokio::time::sleep(TTL_OF_CACHE_GC).await;
+                    cache.remove_expired();
+                }
+            }
+            .boxed(),
+        );
     }
 
     // because route_map contains mpsc::Sender, I will drop it to make these Senders unavailable

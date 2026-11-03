@@ -27,6 +27,7 @@ const ADDRESS_NPT_STRING: &str = "npt";
 
 // TODO: magic number or set it in config file?
 pub const TTL_OF_CACHE: Duration = Duration::from_secs(600);
+pub const TTL_OF_CACHE_GC: Duration = Duration::from_secs(3600);
 pub const MPSC_CAPACITY: usize = 1;
 
 impl NDConfig {
