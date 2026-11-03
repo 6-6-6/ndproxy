@@ -1,6 +1,6 @@
-use crate::datalink::bpf::*;
 use crate::datalink::PacketReceiver;
 use crate::datalink::PacketReceiverOpts;
+use crate::datalink::bpf::*;
 use crate::interfaces;
 use pnet::packet::icmpv6::Icmpv6Types;
 use std::mem::size_of;
